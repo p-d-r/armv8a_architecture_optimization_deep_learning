@@ -31,11 +31,14 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         source/Pooling.cpp)
 
 
-# add onnxruntime library!
+# add onnxruntime library! (name library -> set lib location -> include header directory
+add_library(onnxruntime_training_lib SHARED IMPORTED)
+set_target_properties(onnxruntime_training_lib PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../jniLibs/onnxruntime_training/${ANDROID_ABI}/libonnxruntime_training.so)
 add_library(onnxruntime_lib SHARED IMPORTED)
 set_target_properties(onnxruntime_lib PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_SOURCE_DIR}/../jniLibs/${ANDROID_ABI}/libonnxruntime.so)
-include_directories(${CMAKE_SOURCE_DIR}/include)
+        ${CMAKE_SOURCE_DIR}/../jniLibs/onnxruntime/${ANDROID_ABI}/libonnxruntime.so)
+include_directories(${CMAKE_SOURCE_DIR}/include/)
 
 
 # Specifies libraries CMake should link to your target library. You
@@ -45,6 +48,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         # List libraries link to the target library
         android
         log
+        onnxruntime_training_lib
         onnxruntime_lib)
 
 # Common compiler options

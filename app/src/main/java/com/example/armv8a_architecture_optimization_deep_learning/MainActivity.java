@@ -19,7 +19,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Declare the native method
-    //public native void load_model(AssetManager assetManager);
+    // public native void load_model(AssetManager assetManager);
     public native void profiler_call();
 
     @Override
@@ -27,6 +27,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+//        Python.start(new AndroidPlatform(this));
+//        Object[] args = new Object[]{"hello world", 10};
+//        Python py = Python.getInstance();
+//        PyObject pyObject = py.getModule("hello_world"); // Without .py extension
+//        String result = pyObject.callAttr("generate_fibonacci", args).toString(); // Call Python function
 
 
         // Call the native methods

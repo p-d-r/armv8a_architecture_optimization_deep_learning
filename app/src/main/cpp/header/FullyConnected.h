@@ -10,10 +10,10 @@
 
 namespace FC {
 
-    class FullyConnected {
+    class FullyConnected: public BaseLayer {
     public:
         FullyConnected(const std::vector<float> & weights, size_t input_size, size_t output_size, int tile_size);
-
+        std::vector<float> setWeights(std::vector<float> &weights);
         std::vector<float> forward(const std::vector<float> & batch_input);
         std::vector<float> forward_transposed_in(const std::vector<float> & batch_input_transposed);
         std::vector<float> forward_tiled(const std::vector<float> & batch_input);

@@ -94,4 +94,8 @@ namespace FC {
 
         return transposed_batch_output;
     }
+
+    std::vector<float> FullyConnected::setWeights(std::vector<float> &weights) {
+        return this->weights = weights;
+    }
 } // namespace FC

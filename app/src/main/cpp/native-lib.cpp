@@ -11,7 +11,7 @@
 #include <android/log.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
+#include <onnxruntime_training/onnxruntime_training_cxx_api.h>
 #include "/header/FullyConnected.h"
 
 
@@ -163,10 +163,13 @@ int profile() {
 
 
 
+
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_example_armv8a_1architecture_1optimization_1deep_1learning_MainActivity_profiler_1call(
         JNIEnv *env, jobject thiz) {
-    test_fully_connected();
+    //test_fully_connected();
+    //generate_model_alexnet();
     profile();
 }
