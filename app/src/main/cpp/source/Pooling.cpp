@@ -4,84 +4,48 @@
 #include "../header/Pooling.h"
 
 namespace POOL {
-    Pooling::Pooling(int pool_size)
-            : pool_size(pool_size){}
+    Pooling::Pooling(size_t pool_height, size_t pool_width, size_t channels,
+                     size_t input_height, size_t input_width, size_t stride,
+                     size_t top_padding, size_t left_padding, size_t bottom_padding, size_t right_padding)
+            : pool_height(pool_height), pool_width(pool_width), channels(channels),
+              input_height(input_height), input_width(input_width), stride(stride),
+              top_padding(top_padding), left_padding(left_padding),
+              bottom_padding(bottom_padding), right_padding(right_padding) {}
 
+    std::vector<float> Pooling::forward(const std::vector<float> &input) {
+        // Adjusted output height and width calculations to account for bottom and right padding
+        size_t outputHeight = (input_height - pool_height + top_padding + bottom_padding) / stride + 1;
+        size_t outputWidth = (input_width - pool_width + left_padding + right_padding) / stride + 1;
 
-    std::vector<std::vector<std::vector<float>>>
-            Pooling::forward(const std::vector<std::vector<std::vector<float>>>& input) {
-        size_t channels = input.size();
-        size_t height = input[0].size();
-        size_t width = input[0][0].size();
+        std::vector<float> output(channels * outputHeight * outputWidth, 0);
 
-        // Calculate output dimensions
-        size_t outHeight = height / pool_size;
-        size_t outWidth = width / pool_size;
+        for (size_t c = 0; c < channels; ++c) {
+            for (size_t h = 0; h < outputHeight; ++h) {
+                for (size_t w = 0; w < outputWidth; ++w) {
+                    float maxVal = -std::numeric_limits<float>::infinity();
+                    for (size_t ph = 0; ph < pool_height; ++ph) {
+                        for (size_t pw = 0; pw < pool_width; ++pw) {
+                            // Calculate the input indices considering the stride and padding
+                            int h_index = h * stride + ph - top_padding;
+                            int w_index = w * stride + pw - left_padding;
 
-        std::vector<std::vector<std::vector<float>>>
-                output(channels,
-                       std::vector<std::vector<float>>(outHeight,
-                                                          std::vector<float>(outWidth, 0)));
-
-        for (int c = 0; c < channels; ++c) {
-            for (int y = 0; y < outHeight; ++y) {
-                for (int x = 0; x < outWidth; ++x) {
-                    float maxVal = -FLT_MAX;
-                    for (int dy = 0; dy < pool_size; ++dy) {
-                        for (int dx = 0; dx < pool_size; ++dx) {
-                            int iy = y * pool_size + dy;
-                            int ix = x * pool_size + dx;
-                            maxVal = std::max(maxVal, input[c][iy][ix]);
-                        }
-                    }
-                    output[c][y][x] = maxVal;
-                }
-            }
-        }
-
-        return output;
-    }
-
-
-    std::vector<std::vector<std::vector<float>>>
-            Pooling::forward_tiled(const std::vector<std::vector<std::vector<float>>> &input,
-                                   size_t tile_size) {
-        size_t channels = input.size();
-        size_t height = input[0].size();
-        size_t width = input[0][0].size();
-        int c, tx, ty, y, x, dy, dx;
-
-        // Calculate output dimensions
-        size_t outHeight = height / pool_size;
-        size_t outWidth = width / pool_size;
-
-        std::vector<std::vector<std::vector<float>>>
-                output(channels,
-                       std::vector<std::vector<float>>(outHeight,
-                                                          std::vector<float>(outWidth, 0)));
-
-        for (c = 0; c < channels; ++c) {
-            // Loop over tiles
-            for (ty = 0; ty < outHeight; ty += tile_size) {
-                for (tx = 0; tx < outWidth; tx += tile_size) {
-                    // Loop inside each tile
-                    for (y = ty; y < ty + tile_size; ++y) {
-                        for (x = tx; x < tx + tile_size; ++x) {
-                            float maxVal = -FLT_MAX;
-                            for (dy = 0; dy < tile_size; ++dy) {
-                                for (dx = 0; dx < tile_size; ++dx) {
-                                    int iy = y * tile_size + dy;
-                                    int ix = x * tile_size + dx;
-                                    maxVal = std::max(maxVal, input[c][iy][ix]);
-                                }
+                            // Check if the index is within the bounds of the input dimensions
+                            if (h_index >= 0 && h_index < input_height && w_index >= 0 && w_index < input_width) {
+                                size_t currentIdx = c * input_height * input_width + h_index * input_width + w_index;
+                                maxVal = std::max(maxVal, input[currentIdx]);
                             }
-                            output[c][y][x] = maxVal;
                         }
                     }
+                    output[c * outputHeight * outputWidth + h * outputWidth + w] = maxVal;
                 }
             }
         }
 
         return output;
     }
+
+
+    void Pooling::setWeights(const std::vector<float> &weights) {;}
+    void Pooling::setBias(const std::vector<float> &bias) {;}
+
 } // POOL

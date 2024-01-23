@@ -28,7 +28,13 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         # List C/C++ source files with relative paths to this CMakeLists.txt.
         native-lib.cpp
         source/FullyConnected.cpp
-        source/Pooling.cpp)
+        source/Pooling.cpp
+        source/Convolution.cpp
+        source/Testing.cpp
+        source/Helpers.cpp
+        source/LRN.cpp
+        source/Network.cpp
+        source/Softmax.cpp)
 
 
 # add onnxruntime library! (name library -> set lib location -> include header directory
@@ -38,8 +44,25 @@ set_target_properties(onnxruntime_training_lib PROPERTIES IMPORTED_LOCATION
 add_library(onnxruntime_lib SHARED IMPORTED)
 set_target_properties(onnxruntime_lib PROPERTIES IMPORTED_LOCATION
         ${CMAKE_SOURCE_DIR}/../jniLibs/onnxruntime/${ANDROID_ABI}/libonnxruntime.so)
-include_directories(${CMAKE_SOURCE_DIR}/include/)
 
+
+
+# Linking ARM Compute Library
+add_library(arm_compute SHARED IMPORTED)
+set_target_properties(arm_compute PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute.so)
+add_library(arm_compute_core SHARED IMPORTED)
+set_target_properties(arm_compute_core PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_core.so)
+add_library(arm_compute_graph SHARED IMPORTED)
+set_target_properties(arm_compute_graph PROPERTIES IMPORTED_LOCATION
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_graph.so)
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include/
+        ${CMAKE_SOURCE_DIR}/include/arm/
+        ${CMAKE_SOURCE_DIR}/include/arm/include
+        )
 
 # Specifies libraries CMake should link to your target library. You
 # can link libraries from various origins, such as libraries defined in this
@@ -49,13 +72,16 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         android
         log
         onnxruntime_training_lib
-        onnxruntime_lib)
+        onnxruntime_lib
+        arm_compute
+        arm_compute_core
+        arm_compute_graph)
 
 # Common compiler options
 #add_compile_options(-Wall -Wextra -O3 -funroll-loops -ffast-math)
-add_compile_options(-Wall -Wextra -O2)
+add_compile_options(-Wall -Wextra -O0 -fPIC)
 
 # Compiler-specific options
 add_compile_options(-pedantic)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
