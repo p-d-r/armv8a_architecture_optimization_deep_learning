@@ -12,6 +12,32 @@ namespace POOL {
               top_padding(top_padding), left_padding(left_padding),
               bottom_padding(bottom_padding), right_padding(right_padding) {}
 
+    Pooling::Pooling(size_t pool_height, size_t pool_width, size_t channels,
+                     size_t input_height, size_t input_width, size_t stride,
+                     size_t top_padding, size_t left_padding, size_t bottom_padding, size_t right_padding,
+                     std::shared_ptr<arm_compute::Tensor> input_tensor, std::shared_ptr<arm_compute::Tensor> output_tensor)
+            : pool_height(pool_height), pool_width(pool_width), channels(channels),
+              input_height(input_height), input_width(input_width), stride(stride),
+              top_padding(top_padding), left_padding(left_padding),
+              bottom_padding(bottom_padding), right_padding(right_padding), input_tensor(input_tensor), output_tensor(output_tensor) {
+
+        // Define the pooling layer parameters
+        arm_compute::PoolingLayerInfo pool_info(arm_compute::PoolingType::MAX,
+                                                arm_compute::Size2D(pool_width, pool_height),
+                                                arm_compute::DataLayout::NCHW,
+                                                arm_compute::PadStrideInfo(stride,
+                                                                           stride,
+                                                                           left_padding,
+                                                                           right_padding,
+                                                                           top_padding,
+                                                                           bottom_padding,
+                                                                           arm_compute::DimensionRoundingType::CEIL));
+        // Configure the pooling layer
+        pool_layer.configure(input_tensor.get(), output_tensor.get(), pool_info);
+    }
+
+
+
     std::vector<float> Pooling::forward(const std::vector<float> &input) {
         // Adjusted output height and width calculations to account for bottom and right padding
         size_t outputHeight = (input_height - pool_height + top_padding + bottom_padding) / stride + 1;
@@ -45,7 +71,7 @@ namespace POOL {
     }
 
 
-    void Pooling::setWeights(const std::vector<float> &weights) {;}
-    void Pooling::setBias(const std::vector<float> &bias) {;}
-
+    void Pooling::forward_acl() {
+        pool_layer.run();
+    }
 } // POOL

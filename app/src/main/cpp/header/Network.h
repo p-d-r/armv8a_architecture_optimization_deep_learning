@@ -8,6 +8,7 @@
 #include <vector>
 #include <android/log.h>
 #include "Layer.h"
+#include "arm_compute/runtime/Tensor.h"
 
 #define LOG_TAG_NETWORK "NativeCode:native-lib" // Tag for logging
 #define LOGI_NETWORK(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_NETWORK, __VA_ARGS__)
@@ -20,8 +21,14 @@ namespace NETWORK {
         void addLayer(Layer *layer);
 
         // Method to perform forward pass through all layers
-        std::vector<float> forward(const std::vector<float>& input);
+        std::vector<float> forward(const std::vector<float> &input);
+
+        void forward_acl();
+
         ~Network() {}
+
+        std::shared_ptr<arm_compute::Tensor> input_tensor;
+        std::shared_ptr<arm_compute::Tensor> output_tensor;
     private:
         std::vector<std::unique_ptr<Layer>> layers;
     };

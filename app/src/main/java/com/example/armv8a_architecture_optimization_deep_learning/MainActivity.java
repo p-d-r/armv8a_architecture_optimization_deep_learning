@@ -35,11 +35,6 @@ import java.util.concurrent.ExecutionException;
 public class MainActivity extends AppCompatActivity {
     // Load the native library
     static {
-        System.loadLibrary("c++_shared");
-        System.loadLibrary("arm_compute");
-        System.loadLibrary("arm_compute_core");
-        System.loadLibrary("arm_compute_graph");
-
         System.loadLibrary("armv8a_architecture_optimization_deep_learning");
     }
 
@@ -49,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private native void profiler_call();
 
     private native int[] run_inference(float[] image);
+    private native int[] run_inference_acl(float[] image);
 
     private PreviewView previewView;
     private TextView textView;
@@ -138,7 +134,7 @@ public class MainActivity extends AppCompatActivity {
                 Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 224, 224, true);
 
                 // Now you can work with scaledBitmap as needed
-                int[] prediction = run_inference(getFlattenedChannelFirstRGBArrayNormalized(scaledBitmap));
+                int[] prediction = run_inference_acl(getFlattenedChannelFirstRGBArrayNormalized(scaledBitmap));
                 textView.setText("");
                 textView.setText(String.valueOf(prediction[0]) + "  " + categories[prediction[0]] + "\n" +
                                  String.valueOf(prediction[1]) + "  " + categories[prediction[1]] + "\n" +

@@ -5,8 +5,23 @@
 #include "../header/LRN.h"
 
 namespace LRN {
-    LRN::LRN(size_t depth, size_t height, size_t width, size_t local_size, double alpha, float beta, float k) :
-    depth(depth), height(height), width(width), local_size(local_size), alpha(alpha), beta(beta), k(k) {}
+    LRN::LRN(size_t depth, size_t height, size_t width, size_t local_size, double alpha, float beta,
+             float k, std::shared_ptr<arm_compute::Tensor> input_tensor, std::shared_ptr<arm_compute::Tensor> output_tensor):
+            depth(depth), height(height), width(width), local_size(local_size), alpha(alpha), beta(beta), k(k),
+            input_tensor(input_tensor), output_tensor(output_tensor){
+
+        if (input_tensor != nullptr) {
+            arm_compute::NormalizationLayerInfo norm_info(
+                    arm_compute::NormType::CROSS_MAP, // LRN type
+                    this->local_size,             // normalization size
+                    this->alpha,                           // alpha
+                    this->beta,                            // beta
+                    this->k                          // kappa
+            );
+
+            lrn_layer.configure(input_tensor.get(), output_tensor.get(), norm_info);
+        }
+    }
 
     std::vector<float> LRN::forward(const std::vector<float> &input) {
         std::vector<float> output(input.size(), 0.0f);
@@ -34,5 +49,10 @@ namespace LRN {
 
         return output;
     }
+
+    void LRN::forward_acl() {
+        this->lrn_layer.run();
+    }
+
 
 } // LRN

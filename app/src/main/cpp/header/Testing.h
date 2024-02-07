@@ -11,10 +11,16 @@
 #include "FullyConnected.h"
 #include "Pooling.h"
 #include "Convolution.h"
+#include "Helpers.h"
+#include <iostream>
+#include <arm_compute/runtime/Tensor.h>
+#include <arm_compute/core/TensorInfo.h>
+#include <arm_compute/core/Coordinates.h>
 
 #define LOG_TAG "NativeCode:Testing" // Tag for logging
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
+void printTensor(const arm_compute::Tensor& tensor);
 void test_fully_connected();
 void test_pooling();
 void test_convolution();

@@ -21,6 +21,16 @@ std::vector<float> generateRandomTensor(size_t size) {
 }
 
 
+void vectorToTensor(arm_compute::Tensor& tensor, const std::vector<float>& data, const arm_compute::TensorShape& shape) {
+    // Initialize the tensor
+    tensor.allocator()->init(arm_compute::TensorInfo(shape, 1, arm_compute::DataType::F32));
+    // Allocate memory for the tensor
+    tensor.allocator()->allocate();
+    // Copy data into the tensor
+    std::copy(data.begin(), data.end(), reinterpret_cast<float*>(tensor.buffer()));
+}
+
+
 bool loadFromBinary(const std::string& filename, std::vector<float>& data) {
     std::ifstream input(filename, std::ios::binary);
 
@@ -70,4 +80,20 @@ std::vector<size_t> find_top_five_indices(const std::vector<float>& values) {
               [&values](size_t a, size_t b) { return values[a] > values[b]; });
 
     return indices;
+}
+// Function to get the indexes of the top 5 elements in a tensor
+std::vector<size_t> find_top_five_indices(const arm_compute::Tensor *tensor) {
+    // Check if tensor is not empty and is a float tensor
+    if (!tensor->info()->tensor_shape().total_size() || tensor->info()->data_type() != arm_compute::DataType::F32) {
+        return {};
+    }
+
+    // Flatten the tensor to a 1D vector
+    size_t totalSize = tensor->info()->tensor_shape().total_size();
+    std::vector<float> flattened(totalSize);
+    std::copy(reinterpret_cast<float*>(tensor->buffer()),
+              reinterpret_cast<float*>(tensor->buffer()) + totalSize,
+              flattened.begin());
+
+    return find_top_five_indices(flattened);
 }

@@ -19,6 +19,13 @@ namespace NETWORK {
         return output;
     }
 
+    void Network::forward_acl() {
+        for (auto& layer: layers){
+            LOGI_NETWORK("Current Layer:%s", layer->getName().c_str());
+            layer->forward_acl();
+        }
+    }
+
     void Network::addLayer(Layer *layer) {
         layers.emplace_back(layer);
     }

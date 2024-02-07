@@ -11,6 +11,7 @@
 class Layer {
 public:
     virtual std::vector<float> forward(const std::vector<float> &input) = 0;
+    virtual void forward_acl() = 0;
     virtual void setWeights(const std::vector<float> &weights) = 0;
     virtual void setBias(const std::vector<float> &bias) = 0;
     virtual std::string getName() = 0;

@@ -4,7 +4,15 @@
 
 #include "../header/Softmax.h"
 
+
 namespace CNN {
+    Softmax::Softmax(std::shared_ptr<arm_compute::Tensor> input_tensor, std::shared_ptr<arm_compute::Tensor> output_tensor):
+        input_tensor(input_tensor), output_tensor(output_tensor) {
+        if (input_tensor != nullptr)
+            softmax_layer.configure(input_tensor.get(), output_tensor.get());
+    }
+
+
     std::vector<float> Softmax::forward(const std::vector<float> &input) {
         // Assuming that the input is a 1D vector of logits
         std::vector<float> output(input.size());
@@ -22,5 +30,9 @@ namespace CNN {
         }
 
         return output;
+    }
+
+    void Softmax::forward_acl() {
+        softmax_layer.run();
     }
 } // CNN

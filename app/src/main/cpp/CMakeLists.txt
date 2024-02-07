@@ -33,8 +33,10 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         source/Testing.cpp
         source/Helpers.cpp
         source/LRN.cpp
+        source/Flatten.cpp
         source/Network.cpp
         source/Softmax.cpp)
+
 
 
 # add onnxruntime library! (name library -> set lib location -> include header directory
@@ -48,15 +50,15 @@ set_target_properties(onnxruntime_lib PROPERTIES IMPORTED_LOCATION
 
 
 # Linking ARM Compute Library
-add_library(arm_compute SHARED IMPORTED)
+add_library(arm_compute STATIC IMPORTED)
 set_target_properties(arm_compute PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute.so)
-add_library(arm_compute_core SHARED IMPORTED)
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute-static.a)
+add_library(arm_compute_core STATIC IMPORTED)
 set_target_properties(arm_compute_core PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_core.so)
-add_library(arm_compute_graph SHARED IMPORTED)
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_core-static.a)
+add_library(arm_compute_graph STATIC IMPORTED)
 set_target_properties(arm_compute_graph PROPERTIES IMPORTED_LOCATION
-        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_graph.so)
+        ${CMAKE_SOURCE_DIR}/../jniLibs/arm_compute/${ANDROID_ABI}/libarm_compute_graph-static.a)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/include/
