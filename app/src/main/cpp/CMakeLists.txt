@@ -35,7 +35,8 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         source/LRN.cpp
         source/Flatten.cpp
         source/Network.cpp
-        source/Softmax.cpp)
+        source/Softmax.cpp
+        source/AssetManagement.cpp)
 
 
 

@@ -2,349 +2,443 @@
 // Created by David on 1/9/2024.
 //
 #include "../header/Testing.h"
-
-// Simple assertion function to compare vectors
-void assert_equal(const std::vector<float>& expected, const std::vector<float>& actual, float epsilon) {
-    if (expected.size() != actual.size()) {
-        LOGI("Test failed: Size mismatch expected: %zu, actual:%zu", expected.size(), actual.size());
-        return;
-    }
-
-    for (size_t i = 0; i < expected.size(); ++i) {
-        if (std::fabs(expected[i] - actual[i]) > epsilon) {
-            LOGI("expected value: %f,  actual value: %f", expected[i], actual[i]);
-            LOGI("Test failed: Value mismatch at index %zu", i);
-            return;
-        }
-    }
-
-    LOGI("FC Test Passed!");
-}
-
-
-void printTensor(const arm_compute::Tensor& tensor) {
-    // Ensure tensor is allocated
-    if (!tensor.info()->is_resizable()) {
-        const auto tensor_info = tensor.info();
-        const auto shape = tensor_info->tensor_shape();
-        const size_t total_elements = shape.total_size();
-
-        // Assuming the tensor holds floats
-        auto data_ptr = reinterpret_cast<const float*>(tensor.buffer());
-
-        for (size_t i = 0; i < total_elements; ++i) {
-            LOGI("element: %zu, value:    %f", i, data_ptr[i]);
-        }
-    } else {
-        LOGI("tensor is not allocated");
-    }
-}
-
+#include "../header/Network.h"
 
 
 // Test function for FullyConnected class
 void test_fully_connected() {
-    // Initialize your FullyConnected object and test data
-    std::vector<float> weights = {0.1, 0.2, 0.3, 0.4, 0.5,
-                                  0.6, 0.7, 0.8, 0.9, 1.0,
-                                  1.1, 1.2, 1.3, 1.4, 1.5,
-                                  1.6, 1.7, 1.8, 1.9, 2.0};
-    std::vector<float> weights_T = {0.1, 0.6, 1.1, 1.6,
-                                    0.2, 0.7, 1.2, 1.7,
-                                    0.3, 0.8, 1.3, 1.8,
-                                    0.4, 0.9, 1.4, 1.9,
-                                    0.5, 1.0, 1.5, 2.0};
-    std::vector<float> bias = {1.0, 2.0, 3.0, 4.0};
-    size_t input_size = 5;
-    size_t output_size = 4;
-    int tile_size = 2;
 
-    FC::FullyConnected fc(weights, bias, input_size, output_size, tile_size);
-    std::vector<float> input = {1.0,
-                                2.0,
-                                3.0,
-                                4.0,
-                                5.0};
-    std::vector<float> expected_output = {6.5, 15, 23.5, 32};
-
-    // Test standard forward method
-    std::vector<float> output_1 = fc.forward(input);
-    assert_equal(expected_output, output_1);
-
-//    // Initialize ACL tensors for the new version
-//    arm_compute::Tensor acl_input, acl_output;
-//    acl_input.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(input_size, 1), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_output.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(output_size, 1), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_input.allocator()->allocate();
-//    acl_output.allocator()->allocate();
-//    std::copy(input.begin(), input.end(), reinterpret_cast<float*>(acl_input.buffer()));
-//    LOGI("print input content");
-//    printTensor(acl_input);
-//    arm_compute::Tensor *acl_weights;
-//    arm_compute::Tensor *acl_bias;
-//    vectorToTensor(*acl_weights, weights, arm_compute::TensorShape(4,5));
-//    vectorToTensor(*acl_bias, bias, arm_compute::TensorShape(4));
-//
-//    // Initialize and test the ACL-based FullyConnected object
-//    FC::FullyConnected fc_acl(&acl_input, acl_weights, acl_bias, &acl_output, input_size, output_size, tile_size);
-//    LOGI("print weights");
-//    printTensor(*acl_weights);
-//    LOGI("print bias");
-//    printTensor(*acl_bias);
-//    fc_acl.forward_acl(); // Assuming forward method modified to work without arguments
-//
-//    // Extract output from ACL tensor
-//    std::vector<float> output_acl(output_size);
-//    std::copy(reinterpret_cast<float*>(acl_output.buffer()), reinterpret_cast<float*>(acl_output.buffer()) + output_size, output_acl.begin());
-//
-//    LOGI("print output content");
-//    printTensor(acl_output);
-//    // Compare ACL output with original output
-//    assert_equal(output_1, output_acl);
-
-    // Initialize your FullyConnected object and test data
-    weights = {1.0, 2.0, 3.0, 4.0,
-               5.0, 6.0, 7.0, 8.0,
-               9.0, 10.0, 11.0, 12.0,
-               13.0, 14.0, 15.0, 16.0};
-    weights_T = {1.0, 5.0, 9.0, 13.0,
-                 2.0, 6.0, 10.0, 14.0,
-                 3.0, 7.0, 11.0, 15.0,
-                 4.0, 8.0, 12.0, 16.0};
-    bias = {1.0, 2.0, 3.0, 4.0};
-    input_size = 4;
-    output_size = 4;
-    tile_size = 2;
-
-    FC::FullyConnected fc2(weights, bias, input_size, output_size, tile_size);
-    input = {2.0, 3.0, 4.0, 5.0,
-             6.0, 7.0, 8.0, 9.0,
-             10.0, 11.0, 12.0, 13.0,
-             14.0, 15.0, 16.0, 17.0};
-
-    //actually this is the result of WEIGHTS*INPUT, not INPUT*WEIGHTS
-//    expected_output = {101.0, 111.0, 121.0, 131.0,
-//                       230.0, 256.0, 282.0, 308.0,
-//                       359.0, 401.0, 443.0, 485.0,
-//                       488.0, 546.0, 604.0, 662.0};
-
-    expected_output = {119.0, 133.0, 147.0, 161.0,
-                       232.0, 262.0, 292.0, 322.0,
-                       345.0, 391.0, 437.0, 483.0,
-                       458.0, 520.0, 582.0, 644.0};
-
-    // Test standard forward method
-    output_1 = fc2.forward(input);
-    assert_equal(expected_output, output_1);
-
-//    // Initialize ACL tensors for the new version
-//    arm_compute::Tensor acl_input_2, acl_output_2;
-//    acl_input_2.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(input_size, output_size), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_output_2.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(output_size, output_size), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_input_2.allocator()->allocate();
-//    acl_output_2.allocator()->allocate();
-//    std::copy(input.begin(), input.end(), reinterpret_cast<float*>(acl_input_2.buffer()));
-//
-//    LOGI("print input content");
-//    printTensor(acl_input_2);
-//    arm_compute::Tensor *acl_weights_2;
-//    arm_compute::Tensor *acl_bias_2;
-//    vectorToTensor(*acl_weights_2, weights, arm_compute::TensorShape(4,4));
-//    vectorToTensor(*acl_bias_2, bias, arm_compute::TensorShape(4));
-//
-//    // Initialize and test the ACL-based FullyConnected object
-//    FC::FullyConnected fc_acl_2(&acl_input_2, acl_weights_2, acl_bias_2, &acl_output_2, input_size, output_size, tile_size);
-//    fc_acl_2.forward_acl(); // Assuming forward method modified to work without arguments
-//
-//    // Extract output from ACL tensor
-//    std::vector<float> output_acl_2(output_size*output_size);
-//    std::copy(reinterpret_cast<float*>(acl_output_2.buffer()), reinterpret_cast<float*>(acl_output_2.buffer()) + output_size, output_acl_2.begin());
-//
-//    LOGI("print output content");
-//    printTensor(acl_output_2);
-//
-//    assert_equal(expected_output, output_acl_2);
-//    acl_input.allocator()->free();
-//    acl_output.allocator()->free();
-//    acl_input_2.allocator()->free();
-//    acl_output_2.allocator()->free();
-//    acl_weights->allocator()->free();
-//    acl_weights_2->allocator()->free();
-//    acl_bias->allocator()->free();
-//    acl_bias_2->allocator()->free();
 }
 
 
-void test_pooling() {
-    size_t pool_height = 2;
-    size_t pool_width = 2;
-    size_t channels = 1;
-    size_t input_height = 4;
-    size_t input_width = 4;
-    size_t stride = 2;
+void test_pooling_acl() {
+    LOGI_TEST("-------------TEST MAXPOOLING NCHW------------------");
+    arm_compute::Tensor input_tensor, output_tensor;
+    vectorToTensor(input_tensor, read_binary_float_vector_asset("weights/vgg16/layer_outputs/layer_3.bin"), arm_compute::TensorShape(224, 224, 64, 1), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor).c_str());
+    output_tensor.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(112, 112, 64, 1),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NCHW));
+    output_tensor.allocator()->allocate();
 
-    std::vector<float> input = {
-            // Channel 1
-            1, 2, 3, 4,
-            5, 6, 7, 8,
-            9, 10, 11, 12,
-            13, 14, 15, 16
-    };
-    std::vector<float> expected_output = {
-            // Channel 1
-            6, 8,
-            14, 16
-    };
+    // Define the pooling layer parameters
+    arm_compute::PoolingLayerInfo pool_info(arm_compute::PoolingType::MAX,
+                                            arm_compute::Size2D(2, 2),
+                                            arm_compute::DataLayout::NCHW,
+                                            arm_compute::PadStrideInfo(2,
+                                                                       2,
+                                                                       0,
+                                                                       0,
+                                                                       0,
+                                                                       0,
+                                                                       arm_compute::DimensionRoundingType::FLOOR));
 
-//    arm_compute::Tensor acl_input, acl_output;
-//    acl_input.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(4, 4), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_output.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(2, 2), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_input.allocator()->allocate();
-//    acl_output.allocator()->allocate();
-//    std::copy(input.begin(), input.end(), reinterpret_cast<float*>(acl_input.buffer()));
-//
-//    POOL::Pooling poolingLayer(pool_height, pool_width, channels, input_height, input_width, stride, 0,0,0,0, &acl_input, &acl_output);
-//    LOGI("Pooling input:");
-//    printTensor(poolingLayer.input_tensor);
-//    std::vector<float> output = poolingLayer.forward(input);
-//    assert_equal(expected_output, output);
-//    poolingLayer.forward_acl();
-//    auto output_2 = poolingLayer.output_tensor;
-//    LOGI("Pooling ACL output:");
-//    printTensor(*output_2);
-//
-//    // Extract output from ACL tensor
-//    std::vector<float> output_acl(2*2);
-//    std::copy(reinterpret_cast<float*>(acl_output.buffer()), reinterpret_cast<float*>(acl_output.buffer()) + 2*2, output_acl.begin());
-//    assert_equal(expected_output, output_acl);
+    arm_compute::NEPoolingLayer pool_layer;
+    auto valid = pool_layer.validate(input_tensor.info(), output_tensor.info(), pool_info);
+    LOGI_TEST("%s", valid.error_description().c_str());
+    pool_layer.configure(&input_tensor, &output_tensor, pool_info);
+    pool_layer.run();
+    auto expected = read_binary_float_vector_asset("weights/vgg16/layer_outputs/layer_4.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor, expected)) {
+        LOGI_TEST("TEST MAX POOLING NCHW WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST MAX POOLING NCHW FAILED");
+    }
 
-    // Test with multiple channels
-    pool_height = 2;
-    pool_width = 2;
-    channels = 2;  // Two channels this time
-    input_height = 4;
-    input_width = 4;
-    stride = 2;
+    LOGI_TEST("-------------TEST MAXPOOLING NHWC------------------");
+    arm_compute::Tensor input_tensor_nhwc, output_tensor_nhwc;
+    vectorToTensor(input_tensor_nhwc, read_binary_float_vector_asset("OHWI/outputs/layer_3.bin"), arm_compute::TensorShape(64, 224, 224, 1), arm_compute::DataLayout::NHWC);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor_nhwc).c_str());
+    output_tensor_nhwc.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(64, 112, 112, 1),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NHWC));
+    output_tensor_nhwc.allocator()->allocate();
 
-    std::vector<float> inputMulti = {
-            // Channel 1
-            1, 2, 3, 4,
-            5, 6, 7, 8,
-            9, 10, 11, 12,
-            13, 14, 15, 16,
-            // Channel 2
-            17, 18, 19, 20,
-            21, 22, 23, 24,
-            25, 26, 27, 28,
-            29, 30, 31, 32
-    };
-    std::vector<float> expected_outputMulti = {
-            // Channel 1
-            6, 8,
-            14, 16,
-            // Channel 2
-            22, 24,
-            30, 32
-    };
+    // Define the pooling layer parameters
+    arm_compute::PoolingLayerInfo pool_info_nhwc(arm_compute::PoolingType::MAX,
+                                            arm_compute::Size2D(2, 2),
+                                            arm_compute::DataLayout::NHWC,
+                                            arm_compute::PadStrideInfo(2,
+                                                                       2,
+                                                                       0,
+                                                                       0,
+                                                                       0,
+                                                                       0,
+                                                                       arm_compute::DimensionRoundingType::FLOOR));
 
-//    arm_compute::Tensor acl_input_2, acl_output_2;
-//    acl_input_2.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(4, 4, 2), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_output_2.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(2, 2, 2), 1, arm_compute::DataType::F32)); // Assuming batch size of 1
-//    acl_input_2.allocator()->allocate();
-//    acl_output_2.allocator()->allocate();
-//    std::copy(inputMulti.begin(), inputMulti.end(), reinterpret_cast<float*>(acl_input_2.buffer()));
-//    POOL::Pooling poolingLayerMulti(pool_height, pool_width, channels, input_height, input_width, stride, 0,0,0,0, &acl_input_2, &acl_output_2);
-//    std::vector<float> outputMulti = poolingLayerMulti.forward(inputMulti);
-//    poolingLayerMulti.forward_acl();
-//    assert_equal(expected_outputMulti, outputMulti);
-//
-//    LOGI("Input Pooling 2 Channels");
-//    printTensor(*poolingLayerMulti.input_tensor());
-//    LOGI("Output Pooling 2 Channels");
-//    printTensor(*poolingLayerMulti.output_tensor());
-//    // Extract output from ACL tensor
-//    std::vector<float> output_acl_2(2*2*2);
-//    std::copy(reinterpret_cast<float*>(acl_output_2.buffer()), reinterpret_cast<float*>(acl_output_2.buffer()) + 2*2*2, output_acl_2.begin());
-//    assert_equal(expected_outputMulti, output_acl_2);
-//
-//    acl_input.allocator()->free();
-//    acl_output.allocator()->free();
-//    acl_input_2.allocator()->free();
-//    acl_output_2.allocator()->free();
+    arm_compute::NEPoolingLayer pool_layer_nhwc;
+    auto valid_nhwc = pool_layer_nhwc.validate(input_tensor_nhwc.info(), output_tensor_nhwc.info(), pool_info_nhwc);
+    LOGI_TEST("%s", valid_nhwc.error_description().c_str());
+    pool_layer_nhwc.configure(&input_tensor_nhwc, &output_tensor_nhwc, pool_info_nhwc);
+    pool_layer_nhwc.run();
+    auto expected_nhwc = read_binary_float_vector_asset("OHWI/outputs/layer_4.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor_nhwc).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor_nhwc, expected_nhwc)) {
+        LOGI_TEST("TEST MAX POOLING NHWC WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST MAX POOLING NHWC FAILED");
+    }
+
+    //free acl internally managed resources
+    input_tensor_nhwc.allocator()->free();
+    output_tensor_nhwc.allocator()->free();
 }
 
 
-void test_convolution() {
-    size_t in_channels = 1;
-    size_t out_channels = 1;
-    size_t kernel_height = 2;
-    size_t kernel_width = 2;
-    size_t input_height = 3;
-    size_t input_width = 3;
-    size_t stride = 1;
-    size_t padding = 0;
+//The test samples are exported inputs / outputs from vgg16 pytorch convolutions;
+void test_convolution_acl() {
+    LOGI_TEST("-------------TEST CONVOLUTION NCHW------------------");
+    arm_compute::Tensor input_tensor, kernel_tensor, bias_tensor, output_tensor;
+    vectorToTensor(input_tensor, read_binary_float_vector_asset("weights/vgg16/layer_outputs/layer_1.bin"), arm_compute::TensorShape(224, 224, 64, 1), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor).c_str());
+    vectorToTensor(kernel_tensor, read_binary_float_vector_asset("weights/vgg16/weights/features_1_weight.bin"), arm_compute::TensorShape(3,3,64,64), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST conv kernel info %s", getTensorInfo(kernel_tensor).c_str());
+    vectorToTensor(bias_tensor,read_binary_float_vector_asset("weights/vgg16/weights/features_1_bias.bin"), arm_compute::TensorShape(64));
+    LOGI_TEST("TEST conv bias info %s", getTensorInfo(bias_tensor).c_str());
+    output_tensor.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(224, 224, 64, 1),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NCHW));
+    output_tensor.allocator()->allocate();
 
-    CNN::Convolution convLayer(in_channels, out_channels, kernel_height, kernel_width, input_height, input_width, stride, padding);
-    // Initialize weights and bias
-    convLayer.setWeights({1, 0, 0, 1}); // Simple identity kernel
-    convLayer.setBias({0});             // No bias
+    arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info;
+    // Convolution layer info, including stride, padding, and activation info
+    arm_compute::PadStrideInfo pad_stride_info(1, 1, 1, 1);
+    arm_compute::NEConvolutionLayer convLayer;
+    auto valid = convLayer.validate(input_tensor.info(), kernel_tensor.info(),
+                       bias_tensor.info(), output_tensor.info(),
+                       pad_stride_info, weights_info, arm_compute::Size2D(1,1),
+                       act_info, false, 1);
+    LOGI_TEST("%s", valid.error_description().c_str());
+    convLayer.configure(&input_tensor, &kernel_tensor, &bias_tensor,
+                        &output_tensor, pad_stride_info, weights_info,
+                        arm_compute::Size2D(1,1), act_info, false, 1);
 
-    std::vector<float> input = {
-            // Channel 1
-            1, 2, 3,
-            4, 5, 6,
-            7, 8, 9
-    };
-    std::vector<float> expected_output = {
-            // Channel 1
-            6, 8,
-            12, 14
-    };
+    // Run the convolution
+    convLayer.run();
 
-    std::vector<float> output = convLayer.forward(input);
-    assert_equal(expected_output, output);
+    auto expected = read_binary_float_vector_asset("weights/vgg16/layer_outputs/layer_2.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor, expected)) {
+        LOGI_TEST("TEST CONVOLUTION WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST CONVOLUTION FAILED");
+    }
 
-    in_channels = 2;  // Two input channels
-    out_channels = 2;  // Two output channels
-    kernel_height = 2;
-    kernel_width = 2;
-    input_height = 4;
-    input_width = 4;
-    stride = 2;
-    padding = 0;
+    //free acl internally managed resources
+    input_tensor.allocator()->free();
+    kernel_tensor.allocator()->free();
+    bias_tensor.allocator()->free();
+    output_tensor.allocator()->free();
 
-    CNN::Convolution convLayerMulti(in_channels, out_channels, kernel_height, kernel_width, input_height, input_width, stride, padding);
-    // Initialize weights and bias for a more complex kernel
-    convLayerMulti.setWeights({
-                                      1, 0, -1, 0,  // Kernel for first input channel to first output channel
-                                      0, 1, 0, -1,  // Kernel for second input channel to first output channel
-                                      0, 0, 0, 0,  // Kernel for first input channel to second output channel
-                                      1, 1, 1, 1   // Kernel for second input channel to second output channel
-                              });
-    convLayerMulti.setBias({0, 0});  // No bias for simplicity
+    LOGI_TEST("-------------TEST CONVOLUTION NHWC------------------");
+    arm_compute::Tensor input_tensor_nhwc, kernel_tensor_nhwc, bias_tensor_nhwc, output_tensor_nhwc;
+    vectorToTensor(input_tensor_nhwc, read_binary_float_vector_asset("OHWI/outputs/layer_1.bin"), arm_compute::TensorShape(64, 224, 224, 1), arm_compute::DataLayout::NHWC);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor_nhwc).c_str());
+    vectorToTensor(kernel_tensor_nhwc, read_binary_float_vector_asset("OHWI/conv_layer_1_weights_iwho.bin"), arm_compute::TensorShape(64, 3, 3, 64), arm_compute::DataLayout::NHWC);
+    LOGI_TEST("TEST conv kernel info %s", getTensorInfo(kernel_tensor_nhwc).c_str());
+    vectorToTensor(bias_tensor_nhwc,read_binary_float_vector_asset("weights/vgg16/weights/features_1_bias.bin"), arm_compute::TensorShape(64), arm_compute::DataLayout::NHWC);
+    LOGI_TEST("TEST conv bias info %s", getTensorInfo(bias_tensor_nhwc).c_str());
+    output_tensor_nhwc.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(64, 224, 224, 1),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NHWC));
+    output_tensor_nhwc.allocator()->allocate();
 
-    std::vector<float> inputMulti = {
-            // Channel 1
-            1, 2, 3, 4,
-            5, 6, 7, 8,
-            9, 10, 11, 12,
-            13, 14, 15, 16,
-            // Channel 2
-            16, 15, 14, 13,
-            12, 11, 10, 9,
-            8, 7, 6, 5,
-            4, 3, 2, 1
-    };
+    arm_compute::ActivationLayerInfo act_info_nhwc(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info_nhwc(false, 3, 3, 64, false, arm_compute::WeightFormat::UNSPECIFIED);
+    // Convolution layer info, including stride, padding, and activation info
+    arm_compute::PadStrideInfo pad_stride_info_nhwc(1, 1, 1, 1);
+    arm_compute::NEConvolutionLayer convLayer_nhwc;
+    auto valid_nhwc = convLayer_nhwc.validate(input_tensor_nhwc.info(), kernel_tensor_nhwc.info(),
+                                    bias_tensor_nhwc.info(), output_tensor_nhwc.info(),
+                                    pad_stride_info_nhwc, weights_info_nhwc, arm_compute::Size2D(1,1),
+                                    act_info_nhwc, false, 1);
+    LOGI_TEST("%s", valid_nhwc.error_description().c_str());
+    convLayer_nhwc.configure(&input_tensor_nhwc, &kernel_tensor_nhwc, &bias_tensor_nhwc,
+                        &output_tensor_nhwc, pad_stride_info_nhwc, weights_info_nhwc,
+                        arm_compute::Size2D(1,1), act_info_nhwc, false, 1);
 
-    std::vector<float> expected_outputMulti = {
-            // Output Channel 1
-            0, 0,
-            0, 0,
-            // Output Channel 2
-            54, 46,
-            22, 14,
-    };
+    // Run the convolution
+    convLayer_nhwc.run();
 
-    std::vector<float> outputMulti = convLayerMulti.forward(inputMulti);
-    assert_equal(expected_outputMulti, outputMulti);
+    auto expected_nhwc = read_binary_float_vector_asset("OHWI/outputs/layer_3.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor_nhwc).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor_nhwc, expected_nhwc)) {
+        LOGI_TEST("TEST CONVOLUTION WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST CONVOLUTION FAILED");
+    }
+
+    //free acl internally managed resources
+    input_tensor_nhwc.allocator()->free();
+    kernel_tensor_nhwc.allocator()->free();
+    bias_tensor_nhwc.allocator()->free();
+    output_tensor_nhwc.allocator()->free();
+
+
+    LOGI_TEST("-------------TEST CONVOLUTION ALEXNET NCHW------------------");
+    arm_compute::Tensor input_tensor_anchw, kernel_tensor_anchw, bias_tensor_anchw, output_tensor_anchw;
+    vectorToTensor(input_tensor_anchw, read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_2.bin"), arm_compute::TensorShape(27, 27, 64, 1), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor_anchw).c_str());
+    vectorToTensor(kernel_tensor_anchw, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_1_weights_nchw.bin"), arm_compute::TensorShape(5, 5, 64, 192), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST conv kernel info %s", getTensorInfo(kernel_tensor_anchw).c_str());
+    vectorToTensor(bias_tensor_anchw,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_1_bias.bin"), arm_compute::TensorShape(192), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST conv bias info %s", getTensorInfo(bias_tensor_anchw).c_str());
+    output_tensor_anchw.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(27, 27, 192, 1),
+                                                                 1,
+                                                                 arm_compute::DataType::F32,
+                                                                 arm_compute::DataLayout::NCHW));
+    output_tensor_anchw.allocator()->allocate();
+
+    arm_compute::ActivationLayerInfo act_info_anchw(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info_anchw(false, 5, 5, 192, false, arm_compute::WeightFormat::UNSPECIFIED);
+    // Convolution layer info, including stride, padding, and activation info
+    arm_compute::PadStrideInfo pad_stride_info_anchw(1, 1, 2, 2);
+    arm_compute::NEConvolutionLayer convLayer_anchw;
+    auto valid_anchw = convLayer_anchw.validate(input_tensor_anchw.info(), kernel_tensor_anchw.info(),
+                                              bias_tensor_anchw.info(), output_tensor_anchw.info(),
+                                              pad_stride_info_anchw, weights_info_anchw, arm_compute::Size2D(1,1),
+                                              act_info_nhwc, false, 1);
+    LOGI_TEST("%s", valid_anchw.error_description().c_str());
+    convLayer_anchw.configure(&input_tensor_anchw, &kernel_tensor_anchw, &bias_tensor_anchw,
+                             &output_tensor_anchw, pad_stride_info_anchw, weights_info_anchw,
+                             arm_compute::Size2D(1,1), act_info_anchw, false, 1);
+
+    // Run the convolution
+    convLayer_anchw.run();
+
+    auto expected_anchw= read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_3.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor_anchw).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor_anchw, expected_anchw)) {
+        LOGI_TEST("TEST CONVOLUTION WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST CONVOLUTION FAILED");
+    }
+
+    //free acl internally managed resources
+    input_tensor_anchw.allocator()->free();
+    kernel_tensor_anchw.allocator()->free();
+    bias_tensor_anchw.allocator()->free();
+    output_tensor_anchw.allocator()->free();
+
+
+    LOGI_TEST("-------------TEST CONVOLUTION ALEXNET 3x3------------------");
+    arm_compute::Tensor input_tensor_3x3, kernel_tensor_3x3, bias_tensor_3x3, output_tensor_3x3;
+    vectorToTensor(input_tensor_3x3, read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_5.bin"), arm_compute::TensorShape(13, 13, 192, 1), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST input info %s", getTensorInfo(input_tensor_3x3).c_str());
+    vectorToTensor(kernel_tensor_3x3, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_2_weights_nchw.bin"), arm_compute::TensorShape(3, 3, 192, 384), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST conv kernel info %s", getTensorInfo(kernel_tensor_3x3).c_str());
+    vectorToTensor(bias_tensor_3x3,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_2_bias.bin"), arm_compute::TensorShape(384), arm_compute::DataLayout::NCHW);
+    LOGI_TEST("TEST conv bias info %s", getTensorInfo(bias_tensor_3x3).c_str());
+    output_tensor_3x3.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(13, 13, 384, 1),
+                                                                  1,
+                                                                  arm_compute::DataType::F32,
+                                                                  arm_compute::DataLayout::NCHW));
+    output_tensor_3x3.allocator()->allocate();
+
+    arm_compute::ActivationLayerInfo act_info_3x3(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info_3x3(false, 3, 3, 384, false, arm_compute::WeightFormat::UNSPECIFIED);
+    // Convolution layer info, including stride, padding, and activation info
+    arm_compute::PadStrideInfo pad_stride_info_3x3(1, 1, 1, 1);
+    arm_compute::NEConvolutionLayer convLayer_3x3;
+    auto valid_3x3 = convLayer_3x3.validate(input_tensor_3x3.info(), kernel_tensor_3x3.info(),
+                                                bias_tensor_3x3.info(), output_tensor_3x3.info(),
+                                                pad_stride_info_3x3, weights_info_3x3, arm_compute::Size2D(1,1),
+                                                act_info_3x3, false, 1);
+    LOGI_TEST("%s", valid_3x3.error_description().c_str());
+    convLayer_3x3.configure(&input_tensor_3x3, &kernel_tensor_3x3, &bias_tensor_3x3,
+                              &output_tensor_3x3, pad_stride_info_3x3, weights_info_3x3,
+                              arm_compute::Size2D(1,1), act_info_3x3, false, 1);
+
+    // Run the convolution
+    convLayer_3x3.run();
+
+    auto expected_3x3= read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_6.bin");
+    LOGI_TEST("TEST output info %s", getTensorInfo(output_tensor_3x3).c_str());
+    //printTensor(output_tensor);
+    if (assert_equal(output_tensor_3x3, expected_3x3)) {
+        LOGI_TEST("TEST CONVOLUTION WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST CONVOLUTION FAILED");
+    }
+
+    //free acl internally managed resources
+    input_tensor_3x3.allocator()->free();
+    kernel_tensor_3x3.allocator()->free();
+    bias_tensor_3x3.allocator()->free();
+    output_tensor_3x3.allocator()->free();
+}
+
+/*
+ * Function loads an Imagenet (dog) image and compares the alexnet NCHW ACL implementation
+ * with the output from pytorch; Here, NCHW is used as DataLayout
+ * The accuracy is greater than 0.00001f for every element of every intermediate result
+ */
+void test_alexnet_torch_nchw() {
+    CNN::Network alexnet(arm_compute::DataLayout::NCHW);
+    LOGI_TEST("-------------TEST ALEXNET TORCH NCHW------------------");
+    auto conv0_kernel = std::make_unique<arm_compute::Tensor>();
+    auto conv0_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*conv0_kernel, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_0_weights_nchw.bin"), arm_compute::TensorShape(11, 11, 3, 64), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*conv0_bias,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_0_bias.bin"), arm_compute::TensorShape(64), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *conv0 = new CNN::Convolution(3, 64, 11, 11, 224, 224, 4, 2, 1, std::move(conv0_kernel), std::move(conv0_bias));
+    alexnet.addLayer(conv0, arm_compute::TensorShape(224, 224, 3), arm_compute::TensorShape(55, 55, 64));
+    conv0->configure_acl();
+
+    //copy input image to input tensor of network
+    arm_compute::Tensor *input_tensor = alexnet.input_tensor.get();
+    auto dog_vector = read_binary_float_vector_asset("flattened_dog.bin");
+    std::copy(dog_vector.begin(), dog_vector.end(), reinterpret_cast<float*>(input_tensor->buffer()));
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_1.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 0 CONV0  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 0 CONV0 FAILED");
+    }
+
+    auto *pool0 = new CNN::Pooling(3, 3, 64, 55, 55, 2, 0,0,0,0);
+    alexnet.addLayer(pool0, arm_compute::TensorShape(55, 55, 64), arm_compute::TensorShape(27, 27, 64));
+    pool0->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_2.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 1 POOL0  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 1 POOL0 FAILED");
+    }
+
+    auto conv1_kernel = std::make_unique<arm_compute::Tensor>();
+    auto conv1_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*conv1_kernel, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_1_weights_nchw.bin"), arm_compute::TensorShape(5, 5, 64, 192), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*conv1_bias,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_1_bias.bin"), arm_compute::TensorShape(192), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *conv1 = new CNN::Convolution(64, 192, 5, 5, 27, 27, 1, 2, 1, std::move(conv1_kernel), std::move(conv1_bias));
+    alexnet.addLayer(conv1, arm_compute::TensorShape(27, 27, 64), arm_compute::TensorShape(27, 27, 192));
+    conv1->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_4.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 3 CONV1  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 3 CONV1 FAILED");
+    }
+
+    auto *pool1 = new CNN::Pooling(3, 3, 192, 27, 27, 2, 0,0,0,0);
+    alexnet.addLayer(pool1, arm_compute::TensorShape(27, 27, 192), arm_compute::TensorShape(13, 13, 192));
+    pool1->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_5.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 4 POOL1  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 4 POOL1 FAILED");
+    }
+
+    auto conv2_kernel = std::make_unique<arm_compute::Tensor>();
+    auto conv2_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*conv2_kernel, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_2_weights_nchw.bin"), arm_compute::TensorShape(3, 3, 192, 384), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*conv2_bias,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_2_bias.bin"), arm_compute::TensorShape(384), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *conv2 = new CNN::Convolution(192, 384, 3, 3, 13, 13, 1, 1, 1, std::move(conv2_kernel), std::move(conv2_bias));
+    alexnet.addLayer(conv2, arm_compute::TensorShape(13, 13, 192), arm_compute::TensorShape(13, 13, 384));
+    conv2->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_7.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 5 CONV2  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 5 CONV2 FAILED");
+    }
+
+    auto conv3_kernel = std::make_unique<arm_compute::Tensor>();
+    auto conv3_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*conv3_kernel, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_3_weights_nchw.bin"), arm_compute::TensorShape(3, 3, 384, 256), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*conv3_bias,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_3_bias.bin"), arm_compute::TensorShape(256), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *conv3 = new CNN::Convolution(192, 384, 3, 3, 13, 13, 1, 1, 1, std::move(conv3_kernel), std::move(conv3_bias));
+    alexnet.addLayer(conv3, arm_compute::TensorShape(13, 13, 384), arm_compute::TensorShape(13, 13, 256));
+    conv3->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_9.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 6 CONV3  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 6 CONV3 FAILED");
+    }
+
+    auto conv4_kernel = std::make_unique<arm_compute::Tensor>();
+    auto conv4_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*conv4_kernel, read_binary_float_vector_asset("alexnet_torch/weights/NCHW/conv_layer_4_weights_nchw.bin"), arm_compute::TensorShape(3, 3, 256, 256), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*conv4_bias,read_binary_float_vector_asset("alexnet_torch/weights/conv_layer_4_bias.bin"), arm_compute::TensorShape(256), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *conv4 = new CNN::Convolution(256, 256, 3, 3, 13, 13, 1, 1, 1, std::move(conv4_kernel), std::move(conv4_bias));
+    alexnet.addLayer(conv4, arm_compute::TensorShape(13, 13, 256), arm_compute::TensorShape(13, 13, 256));
+    conv4->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_11.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 7 CONV4  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 7 CONV4 FAILED");
+    }
+
+    auto *pool2 = new CNN::Pooling(3, 3, 256, 13, 13, 2, 0,0,0,0);
+    alexnet.addLayer(pool2, arm_compute::TensorShape(13, 13, 256), arm_compute::TensorShape(6, 6, 256));
+    pool2->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_12.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 8 POOL2  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 8 POOL2 FAILED");
+    }
+
+    auto fc_0_weights = std::make_unique<arm_compute::Tensor>();
+    auto fc_0_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*fc_0_weights, read_binary_float_vector_asset("alexnet_torch/weights/fc0_weights.bin"), arm_compute::TensorShape(9216, 4096), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*fc_0_bias,read_binary_float_vector_asset("alexnet_torch/weights/fc0_bias.bin"), arm_compute::TensorShape(4096), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *fc0 = new CNN::FullyConnected(std::move(fc_0_weights), std::move(fc_0_bias), 9216, 4096, 0);
+    alexnet.addLayer(fc0, arm_compute::TensorShape(9216), arm_compute::TensorShape(4096));
+    fc0->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_14.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 9 FC0  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 9 FC0 FAILED");
+    }
+
+    auto fc_1_weights = std::make_unique<arm_compute::Tensor>();
+    auto fc_1_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*fc_1_weights, read_binary_float_vector_asset("alexnet_torch/weights/fc1_weights.bin"), arm_compute::TensorShape(4096, 4096), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*fc_1_bias,read_binary_float_vector_asset("alexnet_torch/weights/fc1_bias.bin"), arm_compute::TensorShape(4096), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *fc1 = new CNN::FullyConnected(std::move(fc_1_weights), std::move(fc_1_bias), 4096, 4096, 0);
+    alexnet.addLayer(fc1, arm_compute::TensorShape(4096), arm_compute::TensorShape(4096));
+    fc1->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_17.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 10 FC1  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 10 FC1 FAILED");
+    }
+
+    auto fc_2_weights = std::make_unique<arm_compute::Tensor>();
+    auto fc_2_bias = std::make_unique<arm_compute::Tensor>();
+    vectorToTensor(*fc_2_weights, read_binary_float_vector_asset("alexnet_torch/weights/fc2_weights.bin"), arm_compute::TensorShape(4096, 1000), arm_compute::DataLayout::NCHW);
+    vectorToTensor(*fc_2_bias,read_binary_float_vector_asset("alexnet_torch/weights/fc2_bias.bin"), arm_compute::TensorShape(1000), arm_compute::DataLayout::NCHW);
+    //allocate input and output vectors for first convolutional layer
+    auto *fc2 = new CNN::FullyConnected(std::move(fc_2_weights), std::move(fc_2_bias), 4096, 1000, 0, arm_compute::ActivationLayerInfo::ActivationFunction::LINEAR);
+    alexnet.addLayer(fc2, arm_compute::TensorShape(4096), arm_compute::TensorShape(1000));
+    fc2->configure_acl();
+    alexnet.forward_acl();
+    if (assert_equal(*alexnet.output_tensor.get(), read_binary_float_vector_asset("alexnet_torch/outputs/NCHW/layer_19.bin"))) {
+        LOGI_TEST("TEST ALEXNET LAYER 11 FC2  WAS SUCCESSFUL");
+    } else {
+        LOGI_TEST("TEST ALEXNET LAYER 11 FC2 FAILED");
+    }
 }

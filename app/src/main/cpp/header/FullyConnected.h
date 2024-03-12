@@ -16,19 +16,22 @@
 #include "arm_compute/runtime/Tensor.h"
 #include "arm_compute/core/Types.h"
 
-namespace FC {
+namespace CNN {
 
-    class FullyConnected : public Layer {
+class FullyConnected : public CNN::Layer {
     public:
         FullyConnected(const std::vector<float> & weights, const std::vector<float> & bias,
                        size_t input_size, size_t output_size, int tile_size);
-        FullyConnected(std::shared_ptr<arm_compute::Tensor> input_tensor,
-                       std::unique_ptr<arm_compute::Tensor> weights_tensor,
+
+        FullyConnected(std::unique_ptr<arm_compute::Tensor> weights_tensor,
                        std::unique_ptr<arm_compute::Tensor> bias_tensor,
-                       std::shared_ptr<arm_compute::Tensor> output_tensor,
                        size_t input_size,
                        size_t output_size,
-                       int tile_size);
+                       int tile_size,
+                       arm_compute::ActivationLayerInfo::ActivationFunction activation_function
+                       = arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+
+
         void setWeights(const std::vector<float> &weights) override;
         void setBias(const std::vector<float> &bias) override;
         std::vector<float> forward(const std::vector<float> &batch_input) override;
@@ -39,7 +42,7 @@ namespace FC {
 
         //ARM Compute Library functions
         void forward_acl() override;
-        std::shared_ptr<arm_compute::Tensor> input_tensor, output_tensor;
+        void configure_acl();
         std::unique_ptr<arm_compute::Tensor> weights_tensor, bias_tensor;
 
     private:
@@ -48,10 +51,10 @@ namespace FC {
         size_t input_size;
         size_t output_size;
         int tile_size;
-
+        arm_compute::ActivationLayerInfo::ActivationFunction activation_function;
         arm_compute::NEFullyConnectedLayer fc_layer;
     };
 
-} // FC
+} //
 
 #endif //ARMV8A_ARCHITECTURE_OPTIMIZATION_DEEP_LEARNING_FULLYCONNECTED_H

@@ -2,10 +2,6 @@
 // Created by David on 1/9/2024.
 //
 #include "../header/Helpers.h"
-#include <vector>
-#include <fstream>
-#include <iostream>
-#include <iterator>
 
 // Function to generate a random vector
 std::vector<float> generateRandomTensor(size_t size) {
@@ -21,45 +17,20 @@ std::vector<float> generateRandomTensor(size_t size) {
 }
 
 
-void vectorToTensor(arm_compute::Tensor& tensor, const std::vector<float>& data, const arm_compute::TensorShape& shape) {
+void vectorToTensor(arm_compute::Tensor& tensor, const std::vector<float>& data,
+                    const arm_compute::TensorShape& shape,
+                    const arm_compute::DataLayout data_layout) {
     // Initialize the tensor
-    tensor.allocator()->init(arm_compute::TensorInfo(shape, 1, arm_compute::DataType::F32));
+    tensor.allocator()->init(arm_compute::TensorInfo(shape, 1,
+                                                     arm_compute::DataType::F32,
+                                                     data_layout));
     // Allocate memory for the tensor
     tensor.allocator()->allocate();
     // Copy data into the tensor
     std::copy(data.begin(), data.end(), reinterpret_cast<float*>(tensor.buffer()));
-}
-
-
-bool loadFromBinary(const std::string& filename, std::vector<float>& data) {
-    std::ifstream input(filename, std::ios::binary);
-
-    // Files can be large, so we check if it was opened successfully.
-    if (!input.is_open()) {
-        std::cerr << "Unable to open the file: " << filename << std::endl;
-        return false;
-    }
-
-    // Get the size of the file
-    input.seekg(0, std::ios::end);
-    size_t size = input.tellg();
-    input.seekg(0, std::ios::beg);
-
-    // Resize the vector to hold all the data
-    data.resize(size / sizeof(float));
-
-    // Read the data all at once
-    input.read(reinterpret_cast<char*>(data.data()), size);
-
-    // Check for reading error
-    if (!input) {
-        std::cerr << "Error occurred while reading from the file: " << filename << std::endl;
-        input.close();
-        return false;
-    }
-
-    input.close();
-    return true;
+    //make sure the copy process was successful, tensorshape evaluates to actual data count etc.
+    if (!assert_equal(tensor, data))
+        LOGI_HELP("Tensor Conversion Error!");
 }
 
 
@@ -81,6 +52,8 @@ std::vector<size_t> find_top_five_indices(const std::vector<float>& values) {
 
     return indices;
 }
+
+
 // Function to get the indexes of the top 5 elements in a tensor
 std::vector<size_t> find_top_five_indices(const arm_compute::Tensor *tensor) {
     // Check if tensor is not empty and is a float tensor
@@ -96,4 +69,125 @@ std::vector<size_t> find_top_five_indices(const arm_compute::Tensor *tensor) {
               flattened.begin());
 
     return find_top_five_indices(flattened);
+}
+
+
+// Simple assertion function to compare vectors
+bool assert_equal(const std::vector<float>& actual, const std::vector<float>& expected, float epsilon) {
+    if (actual.size() != expected.size()) {
+        LOGI_HELP("Test failed: Size mismatch actual: %zu, expected:%zu", actual.size(), expected.size());
+        return false;
+    }
+
+    for (size_t i = 0; i < actual.size(); ++i) {
+        if (std::fabs(actual[i] - expected[i]) > epsilon) {
+            LOGI_HELP("actual value: %f,  expected value: %f", actual[i], expected[i]);
+            LOGI_HELP("Test failed: Value mismatch at index %zu", i);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+// Simple assertion function to compare tensor and vector
+bool assert_equal(const arm_compute::Tensor& actual, const std::vector<float>& expected, float epsilon) {
+    const auto& tensor_info = actual.info();
+    const arm_compute::TensorShape& shape = tensor_info->tensor_shape();
+    const size_t num_elements = shape.total_size();
+
+    if (num_elements != expected.size()) {
+        LOGI_HELP("Test failed: Size mismatch expected: %zu, actual:%zu", expected.size(), num_elements);
+        return false;
+    }
+
+    const float* tensor_data = reinterpret_cast<const float*>(actual.buffer());
+
+    for (size_t i = 0; i < num_elements; ++i) {
+        if (std::fabs(expected[i] - tensor_data[i]) > epsilon) {
+            LOGI_HELP("expected value: %f, actual value: %f", expected[i], tensor_data[i]);
+            LOGI_HELP("Test failed: Value mismatch at index %zu", i);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+void printTensor(const arm_compute::Tensor& tensor) {
+    // Ensure tensor is allocated
+    LOGI_HELP("tensor info %s", getTensorInfo(tensor).c_str());
+    if (!tensor.info()->is_resizable()) {
+        const auto tensor_info = tensor.info();
+        const auto shape = tensor_info->tensor_shape();
+        const size_t total_elements = shape.total_size();
+
+        // Assuming the tensor holds floats
+        auto data_ptr = reinterpret_cast<const float*>(tensor.buffer());
+
+        for (size_t i = 0; i < total_elements; ++i) {
+            LOGI_HELP("element: %zu, value:    %f", i, data_ptr[i]);
+        }
+    } else {
+        LOGI_HELP("tensor is not allocated");
+    }
+}
+
+
+std::string getTensorInfo(const arm_compute::Tensor& tensor) {
+    std::ostringstream oss;
+    const arm_compute::ITensorInfo* tensor_info = tensor.info();
+
+    if (tensor_info != nullptr) {
+        // Get tensor dimensions
+        const arm_compute::TensorShape& shape = tensor_info->tensor_shape();
+
+        // Append each dimension to the string stream
+        oss << "Tensor dimensions: ";
+        for (size_t i = 0; i < shape.num_dimensions(); ++i) {
+            oss << shape[i] << (i < shape.num_dimensions() - 1 ? " x " : "");
+        }
+
+        // Append total number of elements
+        oss << "\nTotal number of elements: " << shape.total_size();
+
+        // Append data type
+        oss << "\nData type: ";
+        switch (tensor_info->data_type()) {
+            case arm_compute::DataType::F32: oss << "F32"; break;
+            case arm_compute::DataType::F16: oss << "F16"; break;
+            case arm_compute::DataType::QASYMM8: oss << "QASYMM8"; break;
+                // ... handle other data types as needed
+            default: oss << "Unknown";
+        }
+
+        // Append data layout
+        oss << "\nData layout: ";
+        switch (tensor_info->data_layout()) {
+            case arm_compute::DataLayout::NCHW: oss << "NCHW"; break;
+            case arm_compute::DataLayout::NHWC: oss << "NHWC"; break;
+            default: oss << "Unknown";
+        }
+
+        //TODO: expand to float16 etc if necessary
+
+        // Assuming the data is ready to be accessed and is of type F32 for this example
+        // Note: Ensure that the tensor is allocated and the data is ready to be accessed
+        auto data_ptr = reinterpret_cast<float*>(tensor.buffer());
+        if (data_ptr != nullptr) {
+            oss << "\nFirst 20 elements: ";
+            for (size_t i = 0; i < std::min(static_cast<size_t>(20), shape.total_size()); ++i) {
+                oss << data_ptr[i] << " ";
+            }
+        } else {
+            oss << "\nUnable to access data buffer.";
+        }
+
+    } else {
+        oss << "Tensor info is null.";
+    }
+
+    return oss.str();
 }

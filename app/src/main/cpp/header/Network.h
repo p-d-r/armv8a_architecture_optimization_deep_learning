@@ -13,24 +13,25 @@
 #define LOG_TAG_NETWORK "NativeCode:native-lib" // Tag for logging
 #define LOGI_NETWORK(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_NETWORK, __VA_ARGS__)
 
-namespace NETWORK {
+namespace CNN {
 
     class Network {
     public:
+        Network(arm_compute::DataLayout data_layout):data_layout(data_layout) {};
         // Add a generic layer to the network
         void addLayer(Layer *layer);
-
-        // Method to perform forward pass through all layers
+        // Add generic layer to network and set up input and output tensor buffers, wire them
+        void addLayer(Layer *layer, arm_compute::TensorShape in_shape,
+                      arm_compute::TensorShape out_shape);
         std::vector<float> forward(const std::vector<float> &input);
-
         void forward_acl();
-
         ~Network() {}
 
         std::shared_ptr<arm_compute::Tensor> input_tensor;
         std::shared_ptr<arm_compute::Tensor> output_tensor;
     private:
         std::vector<std::unique_ptr<Layer>> layers;
+        arm_compute::DataLayout data_layout;
     };
 
 } // NETWORK

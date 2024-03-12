@@ -17,6 +17,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.hardware.camera2.CameraAccessException;
 import android.media.Image;
 import android.os.Bundle;
@@ -29,6 +30,8 @@ import android.content.res.AssetManager;
 import com.example.armv8a_architecture_optimization_deep_learning.databinding.ActivityMainBinding;
 import com.google.common.util.concurrent.ListenableFuture;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutionException;
 
@@ -130,6 +133,16 @@ public class MainActivity extends AppCompatActivity {
                 buffer.rewind();
                 bitmap.copyPixelsFromBuffer(buffer);
 
+               /* AssetManager assetManager = getAssets();
+                InputStream inputStream = null;
+                try {
+                    inputStream = assetManager.open("test_images/ILSVRC2012_val_00000003.JPEG");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                Bitmap bitmap_dog_test = BitmapFactory.decodeStream(inputStream);
+                //TODO::vgg16 specific preprocessing like in torch*/
+
                 // Scale the Bitmap
                 Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, 224, 224, true);
 
@@ -154,11 +167,37 @@ public class MainActivity extends AppCompatActivity {
         cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
     }
 
+    // Resize the image
+    private Bitmap resizeImage(Bitmap originalImage, int targetSize) {
+        int width = originalImage.getWidth();
+        int height = originalImage.getHeight();
+        float scale = width < height ? (float)targetSize / width : (float)targetSize / height;
+        Matrix matrix = new Matrix();
+        matrix.postScale(scale, scale);
+        return Bitmap.createBitmap(originalImage, 0, 0, width, height, matrix, false);
+    }
+
+
+    // Crop the image to the center
+    private Bitmap centerCrop(Bitmap originalImage) {
+        int targetWidth = 224;
+        int targetHeight = 224;
+        int x = (originalImage.getWidth() - targetWidth) / 2;
+        int y = (originalImage.getHeight() - targetHeight) / 2;
+        return Bitmap.createBitmap(originalImage, x, y, targetWidth, targetHeight);
+    }
 
     private float[] getFlattenedChannelFirstRGBArrayNormalized(Bitmap bitmap) {
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
         int size = width * height;
+
+        float meanR = 0.485f * 255.0f;
+        float meanG = 0.456f * 255.0f;
+        float meanB = 0.406f * 255.0f;
+        float stdR = 0.229f * 255.0f;
+        float stdG = 0.224f * 255.0f;
+        float stdB = 0.225f * 255.0f;
 
         // Each pixel has 3 components (R, G, B), stored channel-wise
         float[] rgbArray = new float[size * 3];
@@ -171,10 +210,15 @@ public class MainActivity extends AppCompatActivity {
             for (int x = 0; x < width; x++) {
                 int pixel = bitmap.getPixel(x, y);
 
-                // Normalize the R, G, B values to [0, 1] range
-                rgbArray[rIndex++] = Color.red(pixel) - 123.68f;//& 0xff);
-                rgbArray[gIndex++] = Color.green(pixel) - 116.779f;//& 0xff);
-                rgbArray[bIndex++] = Color.blue(pixel) - 103.939f;//& 0xff);
+                // Normalize the R, G, B values to [0, 1] range //alexnet model version
+                //rgbArray[rIndex++] = Color.red(pixel) - 123.68f;//& 0xff);
+                //rgbArray[gIndex++] = Color.green(pixel) - 116.779f;//& 0xff);
+                //rgbArray[bIndex++] = Color.blue(pixel) - 103.939f;//& 0xff);
+                // Normalize and standardize the R, G, B values
+                // Normalize the R, G, B vlaues to [0,1] range , vgg16 model version
+                rgbArray[rIndex++] = (Color.red(pixel) - meanR) / stdR;
+                rgbArray[gIndex++] = (Color.green(pixel) - meanG) / stdG;
+                rgbArray[bIndex++] = (Color.blue(pixel) - meanB) / stdB;
             }
         }
 

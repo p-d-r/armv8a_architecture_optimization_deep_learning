@@ -18,6 +18,10 @@ namespace CNN {
                     size_t input_height, size_t input_width, size_t stride, size_t padding);
         Convolution(size_t in_channels, size_t out_channels, size_t kernel_height, size_t kernel_width,
                     size_t input_height, size_t input_width, size_t stride, size_t padding, size_t groups,
+                    std::unique_ptr<arm_compute::Tensor> weights_tensor,
+                    std::unique_ptr<arm_compute::Tensor> bias_tensor);
+        Convolution(size_t in_channels, size_t out_channels, size_t kernel_height, size_t kernel_width,
+                    size_t input_height, size_t input_width, size_t stride, size_t padding, size_t groups,
                     std::shared_ptr<arm_compute::Tensor> input_tensor,
                     std::unique_ptr<arm_compute::Tensor> weights_tensor,
                     std::unique_ptr<arm_compute::Tensor> bias_tensor,
@@ -27,7 +31,7 @@ namespace CNN {
         void setBias(const std::vector<float> &bias) override;
         std::string getName() override {return "convolution";}
         void forward_acl() override;
-        std::shared_ptr<arm_compute::Tensor> input_tensor, output_tensor;
+        void configure_acl();
         std::unique_ptr<arm_compute::Tensor> weights_tensor, bias_tensor;
 
     private:

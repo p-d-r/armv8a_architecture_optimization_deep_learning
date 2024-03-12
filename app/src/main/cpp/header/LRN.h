@@ -11,7 +11,7 @@
 
 namespace LRN {
 
-    class LRN : public Layer {
+class LRN : public CNN::Layer {
     public:
         LRN(size_t depth=96, size_t height=54,
             size_t width=54, size_t local_size=5,

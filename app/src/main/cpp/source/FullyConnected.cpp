@@ -1,6 +1,6 @@
 #include "../header/FullyConnected.h"
 
-namespace FC {
+namespace CNN {
 
     FullyConnected::FullyConnected(const std::vector<float> &weights,
                                    const std::vector<float> &bias,
@@ -14,34 +14,17 @@ namespace FC {
                       tile_size(tile_size) {}
 
 
-
-    FullyConnected::FullyConnected(std::shared_ptr<arm_compute::Tensor> input_tensor,
-                                   std::unique_ptr<arm_compute::Tensor> weights_tensor,
+    FullyConnected::FullyConnected(std::unique_ptr<arm_compute::Tensor> weights_tensor,
                                    std::unique_ptr<arm_compute::Tensor> bias_tensor,
-                                   std::shared_ptr<arm_compute::Tensor> output_tensor,
-                                   size_t input_size,
-                                   size_t output_size,
-                                   int tile_size)
-                    : input_size(input_size),
-                      output_size(output_size),
-                      tile_size(tile_size),
-                      input_tensor(input_tensor),
-                      weights_tensor(std::move(weights_tensor)),
-                      bias_tensor(std::move(bias_tensor)),
-                      output_tensor(output_tensor) {
-        // Set up FullyConnectedLayerInfo
-        arm_compute::FullyConnectedLayerInfo fc_info;
-        fc_info.set_weights_trained_layout(arm_compute::DataLayout::NCHW);
-        fc_info.set_transpose_weights(false);
-        arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
-        fc_info.activation_info = act_info;
+                                   size_t input_size, size_t output_size, int tile_size,
+                                   arm_compute::ActivationLayerInfo::ActivationFunction activation_function)
+            : input_size(input_size),
+              output_size(output_size),
+              tile_size(tile_size),
+              weights_tensor(std::move(weights_tensor)),
+              bias_tensor(std::move(bias_tensor)),
+              activation_function(activation_function) {}
 
-        fc_layer.configure(this->input_tensor.get(),
-                           this->weights_tensor.get(),
-                           this->bias_tensor.get(),
-                           this->output_tensor.get(),
-                           fc_info);
-    }
 
     std::vector<float> FullyConnected::forward(const std::vector<float> &batch_input) {
         size_t num_batches = batch_input.size() / (input_size);
@@ -144,4 +127,24 @@ namespace FC {
     void FullyConnected::forward_acl() {
         fc_layer.run();
     }
-} // namespace FC
+
+    void FullyConnected::configure_acl() {
+        // Set up FullyConnectedLayerInfo
+        arm_compute::FullyConnectedLayerInfo fc_info;
+        fc_info.set_weights_trained_layout(arm_compute::DataLayout::NCHW);
+        fc_info.set_transpose_weights(true);
+        arm_compute::ActivationLayerInfo act_info(this->activation_function, 1, 0);
+        fc_info.activation_info = act_info;
+        auto valid = fc_layer.validate(this->input_tensor.get()->info(),
+                          this->weights_tensor.get()->info(),
+                          this->bias_tensor.get()->info(),
+                          this->output_tensor.get()->info(),
+                          fc_info);
+        LOGI_LAYER("%s", valid.error_description().c_str());
+        fc_layer.configure(this->input_tensor.get(),
+                           this->weights_tensor.get(),
+                           this->bias_tensor.get(),
+                           this->output_tensor.get(),
+                           fc_info);
+    }
+} // namespace CNN

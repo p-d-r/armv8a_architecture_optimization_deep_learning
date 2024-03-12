@@ -21,27 +21,22 @@ namespace CNN {
 
     Convolution::Convolution(size_t in_channels, size_t out_channels, size_t kernel_height,
                              size_t kernel_width, size_t input_height, size_t input_width,
+                             size_t stride, size_t padding, size_t groups,
+                             std::unique_ptr<arm_compute::Tensor> weights_tensor,
+                             std::unique_ptr<arm_compute::Tensor> bias_tensor):
+        in_channels(in_channels), out_channels(out_channels), kernel_height(kernel_height), kernel_width(kernel_width),
+                input_height(input_height), input_width(input_width), stride(stride), padding(padding), groups(groups),
+                weights_tensor(std::move(weights_tensor)), bias_tensor(std::move(bias_tensor)) {
+    }
+
+    Convolution::Convolution(size_t in_channels, size_t out_channels, size_t kernel_height,
+                             size_t kernel_width, size_t input_height, size_t input_width,
                              size_t stride, size_t padding, size_t groups, std::shared_ptr<arm_compute::Tensor> input_tensor,
                              std::unique_ptr<arm_compute::Tensor> weights_tensor, std::unique_ptr<arm_compute::Tensor> bias_tensor,
                              std::shared_ptr<arm_compute::Tensor> output_tensor):
     in_channels(in_channels), out_channels(out_channels), kernel_height(kernel_height), kernel_width(kernel_width),
     input_height(input_height), input_width(input_width), stride(stride), padding(padding), groups(groups),
-    input_tensor(input_tensor), weights_tensor(std::move(weights_tensor)), bias_tensor(std::move(bias_tensor)), output_tensor(output_tensor){
-
-        arm_compute::PadStrideInfo pad_stride_info(stride, stride, padding,
-                                                   padding, padding,
-                                                   padding,
-                                                   arm_compute::DimensionRoundingType::FLOOR);
-        arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
-        arm_compute::WeightsInfo weights_info(false, kernel_width, kernel_height, out_channels);
-        arm_compute::ConvolutionInfo conv_info;
-        conv_info.pad_stride_info = pad_stride_info;
-        conv_info.act_info = act_info;
-        conv_info.dilation = arm_compute::Size2D(0,0);
-        conv_layer.configure(this->input_tensor.get(), this->weights_tensor.get(), this->bias_tensor.get(),
-                             this->output_tensor.get(), pad_stride_info, weights_info,
-                             arm_compute::Size2D(0,0), act_info, false, groups);
-    }
+    weights_tensor(std::move(weights_tensor)), bias_tensor(std::move(bias_tensor)){}
 
     std::vector<float> Convolution::forward(const std::vector<float> &input) {
         size_t outputHeight = (input_height - kernel_height + 2 * padding) / stride + 1;
@@ -90,5 +85,23 @@ namespace CNN {
 
     void Convolution::forward_acl() {
         conv_layer.run();
+    }
+
+    void Convolution::configure_acl() {
+        arm_compute::PadStrideInfo pad_stride_info(stride, stride, padding,
+                                                   padding, padding,
+                                                   padding,
+                                                   arm_compute::DimensionRoundingType::FLOOR);
+        arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+        arm_compute::WeightsInfo weights_info(false, kernel_width, kernel_height, out_channels);
+        arm_compute::ConvolutionInfo conv_info;
+        auto valid = conv_layer.validate(this->input_tensor->info(), this->weights_tensor->info(),
+                                           this->bias_tensor->info(), this->output_tensor->info(),
+                                            pad_stride_info, weights_info, arm_compute::Size2D(1,1),
+                                            act_info, false, 1);
+        LOGI_LAYER("%s", valid.error_description().c_str());
+        conv_layer.configure(this->input_tensor.get(), this->weights_tensor.get(), this->bias_tensor.get(),
+                             this->output_tensor.get(), pad_stride_info, weights_info,
+                             arm_compute::Size2D(1,1), act_info, false, groups);
     }
 } // CNN

@@ -11,21 +11,29 @@
 #include "arm_compute/runtime/Tensor.h"
 
 
-namespace POOL {
+namespace CNN {
 
-    class Pooling : public Layer {
+class Pooling : public CNN::Layer {
     public:
+        /** Constructor without tensor parameters
+         * @param[in] pool_height      pooling kernel height
+         * @param[in] pool_width       pooling kernel width
+         * @param[in] channels         number of channels in the input tensor
+         * @param[in] input_height     height of input tensor
+         * @param[in] input_width      width of input tensor
+         * @param[in] stride           stride (only synchronous stride with stride_x=stride_y is supported)
+         * @param[in] top_padding      right padding
+         * @param[in] left_padding     left padding
+         * @param[in] bottom_padding   bottom padding
+         * @param[in] right_padding    right padding
+         */
         Pooling(size_t pool_height, size_t pool_width, size_t channels,
                 size_t input_height, size_t input_width, size_t stride,
                 size_t top_padding, size_t left_padding, size_t bottom_padding, size_t right_padding);
-        Pooling(size_t pool_height, size_t pool_width, size_t channels,
-                size_t input_height, size_t input_width, size_t stride,
-                size_t top_padding, size_t left_padding, size_t bottom_padding, size_t right_padding,
-                std::shared_ptr<arm_compute::Tensor> input_tensor, std::shared_ptr<arm_compute::Tensor> output_tensor);
         std::vector<float> forward(const std::vector<float> &input) override;
         std::string getName() override {return "Pooling";}
         void forward_acl() override;
-        std::shared_ptr<arm_compute::Tensor> input_tensor, output_tensor;
+        void configure_acl();
 
     private:
         size_t pool_height;
@@ -41,6 +49,6 @@ namespace POOL {
         void setBias(const std::vector<float> &bias) override {};
     };
 
-} // POOL
+} // CNN
 
 #endif //ARMV8A_ARCHITECTURE_OPTIMIZATION_DEEP_LEARNING_POOLING_H
