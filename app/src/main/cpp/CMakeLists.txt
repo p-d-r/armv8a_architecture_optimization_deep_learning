@@ -36,7 +36,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
         source/Flatten.cpp
         source/Network.cpp
         source/Softmax.cpp
-        source/AssetManagement.cpp)
+        source/AssetManagement.cpp
+        source/Profiler.cpp
+        source/LayerThread.cpp)
 
 
 
@@ -82,7 +84,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
 # Common compiler options
 #add_compile_options(-Wall -Wextra -O3 -funroll-loops -ffast-math)
-add_compile_options(-Wall -Wextra -O0 -fPIC)
+add_compile_options(-Wall -Wextra -O2 -fPIC)
 
 # Compiler-specific options
 add_compile_options(-pedantic)

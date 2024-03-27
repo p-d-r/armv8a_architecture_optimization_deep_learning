@@ -11,6 +11,7 @@
 #include <iterator>
 #include <algorithm>
 #include <android/log.h>
+#include "arm_compute/runtime/NEON/functions/NEConvolutionLayer.h"
 #include "arm_compute/runtime/Tensor.h"
 #define LOG_TAG_HELP "NativeCode:Helpers" // Tag for logging
 #define LOGI_HELP(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_HELP, __VA_ARGS__)

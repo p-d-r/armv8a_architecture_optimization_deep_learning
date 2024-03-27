@@ -42,7 +42,7 @@ class FullyConnected : public CNN::Layer {
 
         //ARM Compute Library functions
         void forward_acl() override;
-        void configure_acl();
+        void configure_acl() override;
         std::unique_ptr<arm_compute::Tensor> weights_tensor, bias_tensor;
 
     private:

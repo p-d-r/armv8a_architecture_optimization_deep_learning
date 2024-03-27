@@ -3,6 +3,7 @@
 //
 #include <jni.h>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <chrono>
 #include <iostream>
@@ -18,19 +19,25 @@
 #include "header/Softmax.h"
 #include "header/CustomAccessors.h"
 #include "header/AssetManagement.h"
+#include "header/Flatten.h"
+#include "header/Profiler.h"
 // onnxruntime
 #include "onnxruntime/onnxruntime_cxx_api.h"
 // arm compute library
 #include "arm_compute/graph.h"
 #include "arm_compute/runtime/Scheduler.h"
-#ifdef ARM_COMPUTE_CL
-#include "arm_compute/runtime/CL/Utils.h"
-#endif /* ARM_COMPUTE_CL */
 #include "support/ToolchainSupport.h"
 #include "utils/CommonGraphOptions.h"
 #include "utils/GraphUtils.h"
 #include "utils/Utils.h"
-#include "header/Flatten.h"
+// threading, thread affinity
+#include <thread>
+#include <pthread.h>
+#include <sched.h>
+#include <cstring> // For strerror
+#include <cerrno>  // For errno
+#include <unistd.h>
+#include <sys/syscall.h>
 
 using namespace arm_compute;
 using namespace arm_compute::utils;
@@ -40,7 +47,15 @@ using namespace arm_compute::graph_utils;
 //android device logging -> debug info mode
 #define LOG_TAG_lib "NativeCode:native-lib" // Tag for logging
 #define LOGI_lib(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG_lib, __VA_ARGS__)
-
+#define LAYER_PARALLEL false
+#define CORTEX_X3 7
+#define CORTEX_A715_1 6
+#define CORTEX_A715_2 5
+#define CORTEX_A710_1 4
+#define CORTEX_A710_2 3
+#define CORTEX_A510_1 2
+#define CORTEX_A510_2 1
+#define CORTEX_A510_3 0
 
 // Define a function pointer type for the forward methods
 typedef std::vector<float> (CNN::FullyConnected::*ForwardMethod)(const std::vector<float>&);
@@ -49,6 +64,12 @@ typedef std::vector<float> (CNN::FullyConnected::*ForwardMethod)(const std::vect
 // Declare a global network object
 CNN::Network alexnet(arm_compute::DataLayout::NCHW);
 CNN::Network vgg16(arm_compute::DataLayout::NCHW);
+std::chrono::high_resolution_clock::time_point output_ts;
+std::vector<long long> durations(1000);
+std::vector<double> inf_per_sec(1000);
+int measurement_no = 0;
+
+
 
 
 
@@ -133,83 +154,83 @@ int profile() {
 
 
 
-void generate_model_alexnet() {
-    std::vector<float> conv1_kernel = read_binary_float_vector_asset("weights/alexnetconv1_w_0.bin");
-    std::vector<float> conv1_bias = read_binary_float_vector_asset("weights/alexnetconv1_b_0.bin");
-    LOGI_lib("conv1 dimensions: %zu    %zu", conv1_kernel.size(), conv1_bias.size());
-    auto *conv1 = new CNN::Convolution(3, 96, 11, 11, 224, 224, 4, 0);
-    conv1->setWeights(conv1_kernel);
-    conv1->setBias(conv1_bias);
-    alexnet.addLayer(conv1);
-
-    auto *lrn1 = new LRN::LRN(96, 54, 54, 5, 0.00009999999747378752, 0.75f, 1.0f);
-    alexnet.addLayer(lrn1);
-
-    auto *pooling1 = new CNN::Pooling(3, 3, 96, 54, 54, 2, 0,0,0,0);
-    alexnet.addLayer(pooling1);
-
-    std::vector<float> conv2_kernel = read_binary_float_vector_asset("weights/alexnetconv2_w_0.bin");
-    std::vector<float> conv2_bias = read_binary_float_vector_asset("weights/alexnetconv2_b_0.bin");
-    LOGI_lib("conv2 dimensions: %zu    %zu", conv2_kernel.size(), conv2_bias.size());
-    auto *conv2 = new CNN::Convolution(96, 256, 5, 5, 26, 26, 1, 2);
-    conv2->setWeights(conv2_kernel);
-    conv2->setBias(conv2_bias);
-    alexnet.addLayer(conv2);
-
-    auto *lrn2 = new LRN::LRN(256, 26, 26, 5, 0.00009999999747378752, 0.75f, 1.0f);
-    alexnet.addLayer(lrn2);
-
-    auto *pooling2 = new CNN::Pooling(3, 3, 256, 26, 26, 2, 0,0,0,0);
-    alexnet.addLayer(pooling2);
-
-    std::vector<float> conv3_kernel = read_binary_float_vector_asset("weights/alexnetconv3_w_0.bin");
-    std::vector<float> conv3_bias = read_binary_float_vector_asset("weights/alexnetconv3_b_0.bin");
-    LOGI_lib("conv3 dimensions: %zu    %zu", conv3_kernel.size(), conv3_bias.size());
-    auto *conv3 = new CNN::Convolution(256, 384, 3, 3, 12, 12, 1, 1);
-    conv3->setWeights(conv3_kernel);
-    conv3->setBias(conv3_bias);
-    alexnet.addLayer(conv3);
-
-    std::vector<float> conv4_kernel = read_binary_float_vector_asset("weights/alexnetconv4_w_0.bin");
-    std::vector<float> conv4_bias = read_binary_float_vector_asset("weights/alexnetconv4_b_0.bin");
-    LOGI_lib("conv4 dimensions: %zu    %zu", conv4_kernel.size(), conv4_bias.size());
-    auto *conv4 = new CNN::Convolution(384, 384, 3, 3, 12, 12, 1, 1);
-    conv4->setWeights(conv4_kernel);
-    conv4->setBias(conv4_bias);
-    alexnet.addLayer(conv4);
-
-    std::vector<float> conv5_kernel = read_binary_float_vector_asset("weights/alexnetconv5_w_0.bin");
-    std::vector<float> conv5_bias = read_binary_float_vector_asset("weights/alexnetconv5_b_0.bin");
-    LOGI_lib("conv5 dimensions: %zu    %zu", conv5_kernel.size(), conv5_bias.size());
-    auto *conv5 = new CNN::Convolution(384, 256, 3, 3, 12, 12, 1, 1);
-    conv5->setWeights(conv5_kernel);
-    conv5->setBias(conv5_bias);
-    alexnet.addLayer(conv5);
-
-    auto *pooling3 = new CNN::Pooling(3, 3, 256, 12, 12, 2, 0,0,1,1);
-    alexnet.addLayer(pooling3);
-
-    std::vector<float> fc6_weights = read_binary_float_vector_asset("weights/alexnetfc6_w_0.bin");
-    std::vector<float> fc6_bias = read_binary_float_vector_asset("weights/alexnetfc6_b_0.bin");
-    LOGI_lib("fc6 dimensions: %zu    %zu", fc6_weights.size(), fc6_bias.size());
-    auto *fc6 = new CNN::FullyConnected(fc6_weights, fc6_bias, 9216, 4096, 0);
-    alexnet.addLayer(fc6);
-
-    std::vector<float> fc7_weights = read_binary_float_vector_asset("weights/alexnetfc7_w_0.bin");
-    std::vector<float> fc7_bias = read_binary_float_vector_asset("weights/alexnetfc7_b_0.bin");
-    LOGI_lib("fc7 dimensions: %zu    %zu", fc7_weights.size(), fc7_bias.size());
-    auto *fc7 = new CNN::FullyConnected(fc7_weights, fc7_bias, 4096, 4096, 0);
-    alexnet.addLayer(fc7);
-
-    std::vector<float> fc8_weights = read_binary_float_vector_asset("weights/alexnetfc8_w_0.bin");
-    std::vector<float> fc8_bias = read_binary_float_vector_asset("weights/alexnetfc8_b_0.bin");
-    LOGI_lib("fc8 dimensions: %zu    %zu", fc8_weights.size(), fc8_bias.size());
-    auto *fc8 = new CNN::FullyConnected(fc8_weights, fc8_bias, 4096, 1000, 0);
-    alexnet.addLayer(fc8);
-
-    auto *softmax = new CNN::Softmax();
-    alexnet.addLayer(softmax);
-}
+//void generate_model_alexnet() {
+//    std::vector<float> conv1_kernel = read_binary_float_vector_asset("weights/alexnetconv1_w_0.bin");
+//    std::vector<float> conv1_bias = read_binary_float_vector_asset("weights/alexnetconv1_b_0.bin");
+//    LOGI_lib("conv1 dimensions: %zu    %zu", conv1_kernel.size(), conv1_bias.size());
+//    auto *conv1 = new CNN::Convolution(3, 96, 11, 11, 224, 224, 4, 0);
+//    conv1->setWeights(conv1_kernel);
+//    conv1->setBias(conv1_bias);
+//    alexnet.addLayer(conv1);
+//
+//    auto *lrn1 = new LRN::LRN(96, 54, 54, 5, 0.00009999999747378752, 0.75f, 1.0f);
+//    alexnet.addLayer(lrn1);
+//
+//    auto *pooling1 = new CNN::Pooling(3, 3, 96, 54, 54, 2, 0,0,0,0);
+//    alexnet.addLayer(pooling1);
+//
+//    std::vector<float> conv2_kernel = read_binary_float_vector_asset("weights/alexnetconv2_w_0.bin");
+//    std::vector<float> conv2_bias = read_binary_float_vector_asset("weights/alexnetconv2_b_0.bin");
+//    LOGI_lib("conv2 dimensions: %zu    %zu", conv2_kernel.size(), conv2_bias.size());
+//    auto *conv2 = new CNN::Convolution(96, 256, 5, 5, 26, 26, 1, 2);
+//    conv2->setWeights(conv2_kernel);
+//    conv2->setBias(conv2_bias);
+//    alexnet.addLayer(conv2);
+//
+//    //auto *lrn2 = new LRN::LRN(256, 26, 26, 5, 0.00009999999747378752, 0.75f, 1.0f);
+//    alexnet.addLayer(lrn2);
+//
+//    auto *pooling2 = new CNN::Pooling(3, 3, 256, 26, 26, 2, 0,0,0,0);
+//    alexnet.addLayer(pooling2);
+//
+//    std::vector<float> conv3_kernel = read_binary_float_vector_asset("weights/alexnetconv3_w_0.bin");
+//    std::vector<float> conv3_bias = read_binary_float_vector_asset("weights/alexnetconv3_b_0.bin");
+//    LOGI_lib("conv3 dimensions: %zu    %zu", conv3_kernel.size(), conv3_bias.size());
+//    auto *conv3 = new CNN::Convolution(256, 384, 3, 3, 12, 12, 1, 1);
+//    conv3->setWeights(conv3_kernel);
+//    conv3->setBias(conv3_bias);
+//    alexnet.addLayer(conv3);
+//
+//    std::vector<float> conv4_kernel = read_binary_float_vector_asset("weights/alexnetconv4_w_0.bin");
+//    std::vector<float> conv4_bias = read_binary_float_vector_asset("weights/alexnetconv4_b_0.bin");
+//    LOGI_lib("conv4 dimensions: %zu    %zu", conv4_kernel.size(), conv4_bias.size());
+//    auto *conv4 = new CNN::Convolution(384, 384, 3, 3, 12, 12, 1, 1);
+//    conv4->setWeights(conv4_kernel);
+//    conv4->setBias(conv4_bias);
+//    alexnet.addLayer(conv4);
+//
+//    std::vector<float> conv5_kernel = read_binary_float_vector_asset("weights/alexnetconv5_w_0.bin");
+//    std::vector<float> conv5_bias = read_binary_float_vector_asset("weights/alexnetconv5_b_0.bin");
+//    LOGI_lib("conv5 dimensions: %zu    %zu", conv5_kernel.size(), conv5_bias.size());
+//    auto *conv5 = new CNN::Convolution(384, 256, 3, 3, 12, 12, 1, 1);
+//    conv5->setWeights(conv5_kernel);
+//    conv5->setBias(conv5_bias);
+//    alexnet.addLayer(conv5);
+//
+//    auto *pooling3 = new CNN::Pooling(3, 3, 256, 12, 12, 2, 0,0,1,1);
+//    alexnet.addLayer(pooling3);
+//
+//    std::vector<float> fc6_weights = read_binary_float_vector_asset("weights/alexnetfc6_w_0.bin");
+//    std::vector<float> fc6_bias = read_binary_float_vector_asset("weights/alexnetfc6_b_0.bin");
+//    LOGI_lib("fc6 dimensions: %zu    %zu", fc6_weights.size(), fc6_bias.size());
+//    auto *fc6 = new CNN::FullyConnected(fc6_weights, fc6_bias, 9216, 4096, 0);
+//    alexnet.addLayer(fc6);
+//
+//    std::vector<float> fc7_weights = read_binary_float_vector_asset("weights/alexnetfc7_w_0.bin");
+//    std::vector<float> fc7_bias = read_binary_float_vector_asset("weights/alexnetfc7_b_0.bin");
+//    LOGI_lib("fc7 dimensions: %zu    %zu", fc7_weights.size(), fc7_bias.size());
+//    auto *fc7 = new CNN::FullyConnected(fc7_weights, fc7_bias, 4096, 4096, 0);
+//    alexnet.addLayer(fc7);
+//
+//    std::vector<float> fc8_weights = read_binary_float_vector_asset("weights/alexnetfc8_w_0.bin");
+//    std::vector<float> fc8_bias = read_binary_float_vector_asset("weights/alexnetfc8_b_0.bin");
+//    LOGI_lib("fc8 dimensions: %zu    %zu", fc8_weights.size(), fc8_bias.size());
+//    auto *fc8 = new CNN::FullyConnected(fc8_weights, fc8_bias, 4096, 1000, 0);
+//    alexnet.addLayer(fc8);
+//
+//    //auto *softmax = new CNN::Softmax();
+//    alexnet.addLayer(softmax);
+//}
 
 
 
@@ -221,11 +242,9 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *conv0 = new CNN::Convolution(3, 64, 11, 11, 224, 224, 4, 2, 1, std::move(conv0_kernel), std::move(conv0_bias));
     alexnet.addLayer(conv0, arm_compute::TensorShape(224, 224, 3), arm_compute::TensorShape(55, 55, 64));
-    conv0->configure_acl();
 
     auto *pool0 = new CNN::Pooling(3, 3, 64, 55, 55, 2, 0,0,0,0);
     alexnet.addLayer(pool0, arm_compute::TensorShape(55, 55, 64), arm_compute::TensorShape(27, 27, 64));
-    pool0->configure_acl();
 
     auto conv1_kernel = std::make_unique<arm_compute::Tensor>();
     auto conv1_bias = std::make_unique<arm_compute::Tensor>();
@@ -234,11 +253,9 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *conv1 = new CNN::Convolution(64, 192, 5, 5, 27, 27, 1, 2, 1, std::move(conv1_kernel), std::move(conv1_bias));
     alexnet.addLayer(conv1, arm_compute::TensorShape(27, 27, 64), arm_compute::TensorShape(27, 27, 192));
-    conv1->configure_acl();
 
     auto *pool1 = new CNN::Pooling(3, 3, 192, 27, 27, 2, 0,0,0,0);
     alexnet.addLayer(pool1, arm_compute::TensorShape(27, 27, 192), arm_compute::TensorShape(13, 13, 192));
-    pool1->configure_acl();
 
     auto conv2_kernel = std::make_unique<arm_compute::Tensor>();
     auto conv2_bias = std::make_unique<arm_compute::Tensor>();
@@ -247,7 +264,6 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *conv2 = new CNN::Convolution(192, 384, 3, 3, 13, 13, 1, 1, 1, std::move(conv2_kernel), std::move(conv2_bias));
     alexnet.addLayer(conv2, arm_compute::TensorShape(13, 13, 192), arm_compute::TensorShape(13, 13, 384));
-    conv2->configure_acl();
 
     auto conv3_kernel = std::make_unique<arm_compute::Tensor>();
     auto conv3_bias = std::make_unique<arm_compute::Tensor>();
@@ -256,7 +272,6 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *conv3 = new CNN::Convolution(192, 384, 3, 3, 13, 13, 1, 1, 1, std::move(conv3_kernel), std::move(conv3_bias));
     alexnet.addLayer(conv3, arm_compute::TensorShape(13, 13, 384), arm_compute::TensorShape(13, 13, 256));
-    conv3->configure_acl();
 
     auto conv4_kernel = std::make_unique<arm_compute::Tensor>();
     auto conv4_bias = std::make_unique<arm_compute::Tensor>();
@@ -265,11 +280,9 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *conv4 = new CNN::Convolution(256, 256, 3, 3, 13, 13, 1, 1, 1, std::move(conv4_kernel), std::move(conv4_bias));
     alexnet.addLayer(conv4, arm_compute::TensorShape(13, 13, 256), arm_compute::TensorShape(13, 13, 256));
-    conv4->configure_acl();
 
     auto *pool2 = new CNN::Pooling(3, 3, 256, 13, 13, 2, 0,0,0,0);
     alexnet.addLayer(pool2, arm_compute::TensorShape(13, 13, 256), arm_compute::TensorShape(6, 6, 256));
-    pool2->configure_acl();
 
     auto fc_0_weights = std::make_unique<arm_compute::Tensor>();
     auto fc_0_bias = std::make_unique<arm_compute::Tensor>();
@@ -278,7 +291,6 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *fc0 = new CNN::FullyConnected(std::move(fc_0_weights), std::move(fc_0_bias), 9216, 4096, 0);
     alexnet.addLayer(fc0, arm_compute::TensorShape(9216), arm_compute::TensorShape(4096));
-    fc0->configure_acl();
 
     auto fc_1_weights = std::make_unique<arm_compute::Tensor>();
     auto fc_1_bias = std::make_unique<arm_compute::Tensor>();
@@ -287,7 +299,6 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *fc1 = new CNN::FullyConnected(std::move(fc_1_weights), std::move(fc_1_bias), 4096, 4096, 0);
     alexnet.addLayer(fc1, arm_compute::TensorShape(4096), arm_compute::TensorShape(4096));
-    fc1->configure_acl();
 
     auto fc_2_weights = std::make_unique<arm_compute::Tensor>();
     auto fc_2_bias = std::make_unique<arm_compute::Tensor>();
@@ -296,7 +307,186 @@ void generate_model_alexnet_acl() {
     //allocate input and output vectors for first convolutional layer
     auto *fc2 = new CNN::FullyConnected(std::move(fc_2_weights), std::move(fc_2_bias), 4096, 1000, 0, arm_compute::ActivationLayerInfo::ActivationFunction::LINEAR);
     alexnet.addLayer(fc2, arm_compute::TensorShape(4096), arm_compute::TensorShape(1000));
-    fc2->configure_acl();
+    //in layer parallel mode the operations have to be configured from the respective thread / core!
+    if (LAYER_PARALLEL) {
+        //this performs good as long as all cores are performance cores!
+        alexnet.add_thread(0,2, 7);
+        alexnet.add_thread(2,6, 5);
+        alexnet.add_thread(6,9, 4);
+        alexnet.add_thread(9,alexnet.get_layer_count(), 6);
+        alexnet.start_threads();
+    } else {
+        conv0->configure_acl();
+        pool0->configure_acl();
+        conv1->configure_acl();
+        pool1->configure_acl();
+        conv2->configure_acl();
+        conv3->configure_acl();
+        conv4->configure_acl();
+        pool2->configure_acl();
+        fc0->configure_acl();
+        fc1->configure_acl();
+        fc2->configure_acl();
+    }
+}
+
+
+// Function to set thread affinity
+void setThreadAffinity(int core_id) {
+    // Obtain the native handle of the thread
+    pid_t tid = getpid();
+
+    // CPU set to specify the CPUs on which the thread will be eligible to run
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+
+    // Setting the affinity of the thread to the specified CPU core
+    const int set_result = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    if (set_result != 0) {
+        LOGI_lib("AffinityError sched_setaffinity failed: %s", strerror(errno));
+    }
+
+    cpu_set_t mask;
+    long nproc, i;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == 0) {
+        nproc = sysconf(_SC_NPROCESSORS_ONLN);
+        for (i = 0; i < nproc; i++) {
+            if (CPU_ISSET(i, &mask)) {
+                printf("CPU %ld is available\n", i);
+            }
+        }
+    }
+}
+
+
+void profile_native_lib() {
+    LOGI_lib("number of available cores %ld", sysconf(_SC_NPROCESSORS_ONLN));
+
+    cpu_set_t mask;
+    long nproc, i;
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &mask) == 0) {
+        nproc = sysconf(_SC_NPROCESSORS_ONLN);
+        for (i = 0; i < nproc; i++) {
+            if (CPU_ISSET(i, &mask)) {
+                LOGI_lib("CPU %ld is available", i);
+            }
+        }
+    }
+
+    std::thread profilingThread([]() {
+        // Place the function call or the code to profile here
+        setThreadAffinity(7);
+        profile_acl();
+    });
+
+
+    // Wait for the profiling thread to complete execution
+    profilingThread.join();
+}
+
+
+void readCpuInfo() {
+    std::ifstream cpuInfoFile("/proc/cpuinfo");
+    std::string line;
+
+    if(cpuInfoFile.is_open()) {
+        while(std::getline(cpuInfoFile, line)) {
+            // Process each line as needed
+            LOGI_lib("%s", line.c_str());
+        }
+        cpuInfoFile.close();
+    } else {
+        LOGI_lib("Unable to open /proc/cpuinfo");
+    }
+}
+
+
+void profile_alexnet() {
+    if (LAYER_PARALLEL){
+        arm_compute::Tensor *inputTensor = alexnet.input_tensor.get();
+        auto vec = generateRandomTensor(224*224*3);
+        // Populate the tensor with image data
+        std::copy(vec.begin(), vec.end(),
+                  reinterpret_cast<float *>(inputTensor->buffer()));
+        std::vector<size_t> indices;
+
+        // Step 2: Construct an input arm_compute::Tensor
+        auto start = std::chrono::high_resolution_clock::now();
+        alexnet.signal_input_ready();
+        auto end = std::chrono::high_resolution_clock::now();
+    } else {
+        for (int i = 0; i < 10000; i++) {
+            arm_compute::Tensor *inputTensor = alexnet.input_tensor.get();
+
+            auto vec = generateRandomTensor(224*224*3);
+            // Populate the tensor with image data
+            std::copy(vec.begin(), vec.end(),
+                      reinterpret_cast<float *>(inputTensor->buffer()));
+            std::vector<size_t> indices;
+
+            // Step 2: Construct an input arm_compute::Tensor
+            auto start = std::chrono::high_resolution_clock::now();
+            alexnet.forward_acl();
+            auto end = std::chrono::high_resolution_clock::now();
+            indices = find_top_five_indices(alexnet.output_tensor.get());
+            auto duration =
+                    std::chrono::duration_cast < std::chrono::microseconds > (end - start).count();
+            auto duration_alternative = std::chrono::duration_cast < std::chrono::microseconds >
+                    (end - output_ts).count();
+            output_ts = end;
+            durations[measurement_no] = duration;
+            inf_per_sec[measurement_no] = (1.0 / ((double) (duration_alternative / 1000000.0)));
+            measurement_no++;
+            //LOGI_lib("inference-time:%lld       Inference/Second:%f,     Inference/Second real:%f", duration, (1.0/((double)(duration/1000000.0))), (1.0/((double)(duration_alternative/1000000.0))));
+        }
+
+        std::stringstream ss;
+        int elementsPerLine = 100; // Number of elements to log per line
+        for(size_t i = 0; i < durations.size(); ++i) {
+            ss << durations[i];
+            // Add a comma after each element except the last one
+            if (i < durations.size() - 1) {
+                ss << ", ";
+            }
+            // Insert a line break every 100 elements or at the end of the vector
+            if ((i + 1) % elementsPerLine == 0 || i == durations.size() - 1) {
+                LOGI_lib("%s", ss.str().c_str()); // Use your logging function
+                ss.str(""); // Clear the stringstream for the next chunk of data
+                ss.clear(); // Clear any error flags
+            }
+        }
+        std::stringstream sis;
+        for(size_t i = 0; i < inf_per_sec.size(); ++i) {
+            sis << inf_per_sec[i];
+            // Add a comma after each element except the last one
+            if (i < inf_per_sec.size() - 1) {
+                sis << ", ";
+            }
+            // Insert a line break every 100 elements or at the end of the vector
+            if ((i + 1) % elementsPerLine == 0 || i == inf_per_sec.size() - 1) {
+                LOGI_lib("%s", sis.str().c_str()); // Use your logging function
+                sis.str(""); // Clear the stringstream for the next chunk of data
+                sis.clear(); // Clear any error flags
+            }
+        }
+        // Sort times for median calculation
+        std::sort(durations.begin(), durations.end());
+        double median_time{};
+        // Even number of elements: average of the two middle elements
+        median_time = (durations[1000 / 2 - 1] + durations[1000 / 2]) / 2;
+        LOGI_lib("median duration: %f us;", median_time);
+        // Sort times for median calculation
+        std::sort(inf_per_sec.begin(), inf_per_sec.end());
+        double median_ips{};
+        // Even number of elements: average of the two middle elements
+        median_time = (inf_per_sec[1000 / 2 - 1] + inf_per_sec[1000 / 2]) / 2;
+        LOGI_lib("median inf_per_sec: %f us;", median_time);
+
+        measurement_no++;
+    }
+
+
 }
 
 
@@ -305,13 +495,16 @@ extern "C"
 JNIEXPORT void JNICALL
 Java_com_example_armv8a_1architecture_1optimization_1deep_1learning_MainActivity_profiler_1call(
         JNIEnv *env, jobject thiz) {
+
+    //set the number of threads that are used by the ACL. Must be called before any other ACL function
+    arm_compute::Scheduler::get().set_num_threads(1);
+    // call different test cases for validation
     //test_fully_connected();
-    test_pooling_acl();
+    //test_pooling_acl();
     //test_convolution_acl();
-    test_alexnet_torch_nchw();
+    //test_alexnet_torch_nchw();
     generate_model_alexnet_acl();
-    //arm_compute::Scheduler::get().set_num_threads(1);
-    //profile();
+    profile_alexnet();
 }
 
 
@@ -380,25 +573,36 @@ Java_com_example_armv8a_1architecture_1optimization_1deep_1learning_MainActivity
     std::vector<float> imageVector(cArray, cArray + length);
     env->ReleaseFloatArrayElements(image, cArray, 0);
 
-    // Step 2: Construct an input arm_compute::Tensor
+
     arm_compute::Tensor *inputTensor = alexnet.input_tensor.get();
 
     // Populate the tensor with image data
     std::copy(imageVector.begin(), imageVector.end(), reinterpret_cast<float*>(inputTensor->buffer()));
+    std::vector<size_t> indices;
 
-    //TODO remove test: directly load dog binary data
-    //auto dog_vector = read_binary_float_vector_asset("flattened_dog.bin");
-    //std::copy(dog_vector.begin(), dog_vector.end(), reinterpret_cast<float*>(inputTensor->buffer()));
+    if (LAYER_PARALLEL) {
+        //LOGI_lib("Input ready signal");
+        alexnet.signal_input_ready();
+        //indices = alexnet.wait_for_output();
+        indices = {1,2,3,4,5};
+        auto output_ts_new = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(output_ts_new - output_ts).count();
+        output_ts = output_ts_new;
+        //LOGI_lib("Inference/Second:%f", (1.0/((double)(duration/1000000.0))));
+    } else {
+        auto start = std::chrono::high_resolution_clock::now();
+        alexnet.forward_acl();
+        auto end = std::chrono::high_resolution_clock::now();
+        indices = find_top_five_indices(alexnet.output_tensor.get());
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        auto duration_alternative = std::chrono::duration_cast<std::chrono::microseconds>(end - output_ts).count();
+        output_ts = end;
+        durations[measurement_no] = duration;
+        inf_per_sec[measurement_no] = (1.0/((double)(duration_alternative/1000000.0)));
+        measurement_no++;
+        //LOGI_lib("inference-time:%lld       Inference/Second:%f,     Inference/Second real:%f", duration, (1.0/((double)(duration/1000000.0))), (1.0/((double)(duration_alternative/1000000.0))));
+    }
 
-    // Time the execution of the forward method
-    auto start = std::chrono::high_resolution_clock::now();
-    alexnet.forward_acl();
-
-    auto indices = find_top_five_indices(alexnet.output_tensor.get());
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-
-    LOGI_lib("inference-time:%lld", duration);
     // Create a new Java int array
     jintArray result = env->NewIntArray(indices.size());
     // Allocate a temporary buffer to hold the int values

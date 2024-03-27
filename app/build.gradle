@@ -9,7 +9,7 @@ android {
 
     defaultConfig {
         applicationId "com.example.armv8a_architecture_optimization_deep_learning"
-        minSdk 31
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -64,10 +64,14 @@ android {
         viewBinding true
     }
     ndkVersion '23.0.7599858'
+    //ndkVersion "17.2.4988734"
 }
 
-dependencies {
 
+
+dependencies {
+    implementation(name: 'snpe-release', ext: 'aar')
+    // Make sure to include other dependencies as necessary
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'

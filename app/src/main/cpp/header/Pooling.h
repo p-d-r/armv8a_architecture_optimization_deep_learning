@@ -33,7 +33,7 @@ class Pooling : public CNN::Layer {
         std::vector<float> forward(const std::vector<float> &input) override;
         std::string getName() override {return "Pooling";}
         void forward_acl() override;
-        void configure_acl();
+        void configure_acl() override;
 
     private:
         size_t pool_height;

@@ -38,6 +38,7 @@ namespace CNN {
     input_height(input_height), input_width(input_width), stride(stride), padding(padding), groups(groups),
     weights_tensor(std::move(weights_tensor)), bias_tensor(std::move(bias_tensor)){}
 
+    /*naive implementation*/
     std::vector<float> Convolution::forward(const std::vector<float> &input) {
         size_t outputHeight = (input_height - kernel_height + 2 * padding) / stride + 1;
         size_t outputWidth = (input_width - kernel_width + 2 * padding) / stride + 1;
@@ -59,8 +60,6 @@ namespace CNN {
                                     size_t inputIdx = (ic * input_height * input_width) + (h_index * input_width) + w_index;
                                     size_t weightIdx = ((oc * in_channels + ic) * kernel_height * kernel_width) + (kh * kernel_width) + kw;
                                     sum += input[inputIdx] * weights[weightIdx];
-                                    //TODO: weight index 653332 out of bounds! actual size: 442368 ; where does the mistake lie?
-                                    //TODO: new sample: #weights = 663552; weightIdx = 1178563
                                 }
                             }
                         }

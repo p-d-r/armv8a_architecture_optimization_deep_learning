@@ -6,6 +6,7 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include "../header/Profiler.h"
 #include "../header/FullyConnected.h"
 
 
@@ -24,35 +25,120 @@ std::vector<float> generateRandomVector(size_t size) {
     return v;
 }
 
-int profile() {
-    const size_t inputSize = 100;   // Adjust size as needed
-    const size_t outputSize = 50;   // Adjust size as needed
+void profile_acl() {
+    int iterations = 500;
+    std::vector<long> times(iterations);
+    for (int i = 0; i < iterations; i++) {
+        times[i] = profile_neconv_acl_small();
+        LOGI_PROFILE("run %us, time: %ld", i, times[i]);
+    }
+    // Find minimum and maximum times
+    auto min_time = *std::min_element(times.begin(), times.end());
+    auto max_time = *std::max_element(times.begin(), times.end());
 
-    // Generate random weights and biases
-    std::vector<std::vector<float>> weights(inputSize, generateRandomVector(outputSize));
-    std::vector<float> biases = generateRandomVector(outputSize);
+    // Calculate average time
+    long long total_time = 0;
+    for (const auto& time : times) {
+        total_time += time;
+    }
+    auto average_time = total_time / iterations;
 
-    // Generate a random input vector
-    std::vector<float> input = generateRandomVector(inputSize);
+    // Sort times for median calculation
+    std::sort(times.begin(), times.end());
+    long median_time{};
+    if (iterations % 2 == 0) {
+        // Even number of elements: average of the two middle elements
+        median_time = (times[iterations / 2 - 1] + times[iterations / 2]) / 2;
+    } else {
+        // Odd number of elements: middle element
+        median_time = times[iterations / 2];
+    }
 
-    // Construct the layer
-    FC::FullyConnected layer(weights, biases);
+    LOGI_PROFILE("forward neconvlayer:  min: %ld us;   max: %ld us;   median: %ld us;   average: %lld us", min_time, max_time, median_time, average_time);
+}
 
-    // Time the execution of the forward method
+long profile_neconv_acl(){
+    LOGI_PROFILE("-------------PROFILE NECONVOLUTIONLAYER------------------");
+    arm_compute::Tensor input_tensor, kernel_tensor, bias_tensor, output_tensor;
+    vectorToTensor(input_tensor, generateRandomVector(1000*1000*12), arm_compute::TensorShape(1000, 1000, 12), arm_compute::DataLayout::NCHW);
+    vectorToTensor(kernel_tensor, generateRandomTensor(5*5*12*128), arm_compute::TensorShape(5,5,12,128), arm_compute::DataLayout::NCHW);
+    vectorToTensor(bias_tensor, generateRandomVector(128), arm_compute::TensorShape(128));
+    output_tensor.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(992, 992, 128),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NCHW));
+    output_tensor.allocator()->allocate();
+
+    arm_compute::PadStrideInfo pad_stride_info(1, 1, 1,
+                                               1, 1,
+                                               1,
+                                               arm_compute::DimensionRoundingType::FLOOR);
+    arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info(false, 5, 5, 128);
+    arm_compute::ConvolutionInfo conv_info;
+    arm_compute::NEConvolutionLayer convLayer;
+    auto valid = convLayer.validate(input_tensor.info(), kernel_tensor.info(),
+                                    bias_tensor.info(), output_tensor.info(),
+                                    pad_stride_info, weights_info, arm_compute::Size2D(1,1),
+                                    act_info, false, 1);
+    LOGI_PROFILE("%s", valid.error_description().c_str());
+    convLayer.configure(&input_tensor, &kernel_tensor, &bias_tensor,
+                        &output_tensor, pad_stride_info, weights_info,
+                        arm_compute::Size2D(1,1), act_info, false, 1);
+
+
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<float> output = layer.forward(input);
+    convLayer.run();
     auto end = std::chrono::high_resolution_clock::now();
 
-    std::chrono::duration<double, std::milli> elapsed = end - start;
-    std::cout << "Execution time: " << elapsed.count() << " ms" << std::endl;
+    //free acl internally managed resources
+    input_tensor.allocator()->free();
+    kernel_tensor.allocator()->free();
+    bias_tensor.allocator()->free();
+    output_tensor.allocator()->free();
 
-    // Output some results for verification
-    std::cout << "Output size: " << output.size() << std::endl;
-    std::cout << "First few outputs: ";
-    for (size_t i = 0; i < std::min(size_t(5), output.size()); ++i) {
-        std::cout << output[i] << " ";
-    }
-    std::cout << std::endl;
+    return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+}
 
-    return 0;
+long profile_neconv_acl_small(){
+    LOGI_PROFILE("-------------PROFILE NECONVOLUTIONLAYER SMALL------------------");
+    arm_compute::Tensor input_tensor, kernel_tensor, bias_tensor, output_tensor;
+    vectorToTensor(input_tensor, generateRandomVector(13*13*192), arm_compute::TensorShape(13, 13, 192), arm_compute::DataLayout::NCHW);
+    vectorToTensor(kernel_tensor, generateRandomTensor(3*3*192*384), arm_compute::TensorShape(3, 3, 192, 384), arm_compute::DataLayout::NCHW);
+    vectorToTensor(bias_tensor, generateRandomVector(384), arm_compute::TensorShape(384));
+    output_tensor.allocator()->init(arm_compute::TensorInfo(arm_compute::TensorShape(13, 13, 384),
+                                                            1,
+                                                            arm_compute::DataType::F32,
+                                                            arm_compute::DataLayout::NCHW));
+    output_tensor.allocator()->allocate();
+
+    arm_compute::PadStrideInfo pad_stride_info(1, 1, 1,
+                                               1, 1,
+                                               1,
+                                               arm_compute::DimensionRoundingType::FLOOR);
+    arm_compute::ActivationLayerInfo act_info(arm_compute::ActivationLayerInfo::ActivationFunction::RELU);
+    arm_compute::WeightsInfo weights_info(false, 3, 3, 384);
+    arm_compute::ConvolutionInfo conv_info;
+    arm_compute::NEConvolutionLayer convLayer;
+    auto valid = convLayer.validate(input_tensor.info(), kernel_tensor.info(),
+                                    bias_tensor.info(), output_tensor.info(),
+                                    pad_stride_info, weights_info, arm_compute::Size2D(1,1),
+                                    act_info, false, 1);
+    LOGI_PROFILE("%s", valid.error_description().c_str());
+    convLayer.configure(&input_tensor, &kernel_tensor, &bias_tensor,
+                        &output_tensor, pad_stride_info, weights_info,
+                        arm_compute::Size2D(1,1), act_info, false, 1);
+
+
+    auto start = std::chrono::high_resolution_clock::now();
+    convLayer.run();
+    auto end = std::chrono::high_resolution_clock::now();
+
+    //free acl internally managed resources
+    input_tensor.allocator()->free();
+    kernel_tensor.allocator()->free();
+    bias_tensor.allocator()->free();
+    output_tensor.allocator()->free();
+
+    return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 }

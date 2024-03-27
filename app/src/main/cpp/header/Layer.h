@@ -32,6 +32,8 @@ namespace CNN {
             if (this->output_tensor)
                 this->output_tensor->allocator()->free();
         }
+
+        virtual void configure_acl() = 0;
     };
 }
 #endif //ARMV8A_ARCHITECTURE_OPTIMIZATION_DEEP_LEARNING_LAYER_H
